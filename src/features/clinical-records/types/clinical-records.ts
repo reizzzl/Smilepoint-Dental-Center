@@ -21,14 +21,22 @@ export interface MedicalHistoryDraft {
   additionalNotes: string
 }
 
-export interface DentalToothRecord {
-  toothIdentifier: string
-  condition: string | null
-  notes: string | null
+export interface DentalChartRecord {
+  chart_id: string
+  patient_id: string
+  examined_by: string | null
+  chart_date: string
+  general_notes: string | null
+  created_at: string
+  updated_at: string
 }
 
-export interface DentalChartRecord {
-  patientId: string
-  teeth: DentalToothRecord[]
-  historySummary: string | null
+export interface ToothExaminationRecord {
+  tooth_exam_id: string
+  chart_id: string
+  tooth_number: number
+  surface: string | null
+  condition_status: string
+  remarks: string | null
+  updated_at: string
 }

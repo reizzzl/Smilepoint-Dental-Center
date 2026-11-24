@@ -1,13 +1,28 @@
 import { ClinicalIcon } from '../../../components/ui/ClinicalIcon'
-import type { ClinicalPatientReference, DentalChartRecord } from '../types/clinical-records'
+import type {
+  ClinicalPatientReference,
+  DentalChartRecord,
+  ToothExaminationRecord,
+} from '../types/clinical-records'
 
 export function DentalChart({
   patient,
-  record,
+  charts,
+  toothExaminations,
 }: {
   patient: ClinicalPatientReference | null
-  record: DentalChartRecord | null
+  charts: DentalChartRecord[]
+  toothExaminations: ToothExaminationRecord[]
 }) {
+  function formatTimestamp(value: string) {
+    const timestamp = new Date(value)
+    return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString()
+  }
+
+  function isValidToothNumber(value: number) {
+    return Number.isInteger(value) && value >= 1 && value <= 85
+  }
+
   return (
     <section
       aria-labelledby="dental-chart-heading"
@@ -31,52 +46,99 @@ export function DentalChart({
       </div>
 
       <div className="space-y-4 p-5 sm:p-6">
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5">
-          <div className="mx-auto flex max-w-lg flex-col items-center text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm ring-1 ring-slate-200">
-              <ClinicalIcon name="tooth" className="h-6 w-6" />
-            </div>
-            <h3 className="mt-3 text-sm font-semibold text-slate-900">
-              {record ? 'Dental chart data received' : 'No tooth-condition data loaded'}
-            </h3>
-            <p className="mt-1 text-sm leading-5 text-slate-600">
-              {patient
-                ? `No dental chart entries are available for ${patient.displayName}.`
-                : 'Connect a patient record to display its dental chart. No tooth conditions are assumed.'}
-            </p>
-          </div>
-        </div>
-
-        {record?.teeth.length ? (
-          <div className="overflow-hidden rounded-xl border border-slate-200">
-            <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)] gap-3 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <span>Tooth ID</span>
-              <span>Condition</span>
-              <span>Notes</span>
-            </div>
-            {record.teeth.map((tooth) => (
-              <div
-                className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)] gap-3 border-t border-slate-100 px-4 py-3 text-sm"
-                key={tooth.toothIdentifier}
-              >
-                <span className="font-medium text-slate-800">{tooth.toothIdentifier}</span>
-                <span className="text-slate-600">{tooth.condition || 'Not recorded'}</span>
-                <span className="text-slate-600">{tooth.notes || '—'}</span>
+        {charts.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5">
+            <div className="mx-auto flex max-w-lg flex-col items-center text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm ring-1 ring-slate-200">
+                <ClinicalIcon name="tooth" className="h-6 w-6" />
               </div>
-            ))}
+              <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                No Dental Chart data is currently loaded.
+              </h3>
+              <p className="mt-1 text-sm leading-5 text-slate-600">
+                {patient
+                  ? `Integrate the data source to display Dental Chart records for ${patient.displayName}.`
+                  : 'Connect a patient record and integrate the data source to display Dental Chart records.'}
+              </p>
+            </div>
           </div>
         ) : (
-          <p className="text-center text-xs text-slate-500">
-            Tooth numbering and condition codes will follow the agreed clinical data contract.
-          </p>
-        )}
+          <div className="divide-y divide-slate-100">
+            {charts.map((chart) => {
+              const chartExaminations = toothExaminations.filter(
+                (examination) => examination.chart_id === chart.chart_id,
+              )
 
-        <div className="rounded-xl border border-slate-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-800">Dental history summary</h3>
-          <p className="mt-1 text-sm leading-5 text-slate-500">
-            {record?.historySummary || 'No dental history summary is available.'}
-          </p>
-        </div>
+              return (
+                <article className="space-y-4 py-5 first:pt-0 last:pb-0" key={chart.chart_id}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Chart date:{' '}
+                        <time dateTime={chart.chart_date}>{chart.chart_date}</time>
+                      </h3>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-slate-600">
+                        {chart.general_notes || 'No general notes recorded.'}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-xs text-slate-500">
+                      Chart updated{' '}
+                      <time dateTime={chart.updated_at}>{formatTimestamp(chart.updated_at)}</time>
+                    </p>
+                  </div>
+
+                  {chartExaminations.length === 0 ? (
+                    <p className="rounded-lg bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                      No tooth examination records are available for this chart.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full min-w-[720px] divide-y divide-slate-200 text-left text-sm">
+                        <caption className="sr-only">
+                          Tooth examinations for chart dated {chart.chart_date}
+                        </caption>
+                        <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-4 py-3" scope="col">Tooth number</th>
+                            <th className="px-4 py-3" scope="col">Surface</th>
+                            <th className="px-4 py-3" scope="col">Condition status</th>
+                            <th className="px-4 py-3" scope="col">Remarks</th>
+                            <th className="px-4 py-3" scope="col">Last updated</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {chartExaminations.map((examination: ToothExaminationRecord) => (
+                            <tr key={examination.tooth_exam_id}>
+                              <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">
+                                {isValidToothNumber(examination.tooth_number)
+                                  ? examination.tooth_number
+                                  : `Invalid (${examination.tooth_number}; expected 1-85)`}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {examination.surface ?? '—'}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {examination.condition_status}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {examination.remarks ?? '—'}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                                <time dateTime={examination.updated_at}>
+                                  {formatTimestamp(examination.updated_at)}
+                                </time>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        )}
       </div>
     </section>
   )

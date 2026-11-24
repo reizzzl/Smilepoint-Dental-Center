@@ -44,7 +44,7 @@ export function ClinicalRecordsPage({ patient }: { patient: ClinicalPatientRefer
 
       <div className="space-y-6">
         <MedicalHistoryForm patient={patient} record={null} />
-        <DentalChart patient={patient} record={null} />
+        <DentalChart patient={patient} charts={[]} toothExaminations={[]} />
       </div>
     </div>
   )
