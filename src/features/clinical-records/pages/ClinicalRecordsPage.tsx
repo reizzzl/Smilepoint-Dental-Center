@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ClinicalIcon } from '../../../components/ui/ClinicalIcon'
 import { DentalChart } from '../components/DentalChart'
 import { MedicalHistoryForm } from '../components/MedicalHistoryForm'
+import { TreatmentRecords } from '../components/TreatmentRecords'
 import type { ClinicalPatientReference } from '../types/clinical-records'
 
 export function ClinicalRecordsPage({ patient }: { patient: ClinicalPatientReference | null }) {
@@ -19,10 +20,11 @@ export function ClinicalRecordsPage({ patient }: { patient: ClinicalPatientRefer
           Clinical records
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-          Dental Chart &amp; Medical History
+          Dental Chart, Medical History &amp; Treatment Records
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          Review dental chart information and prepare a medical history draft for the selected patient.
+          Review dental chart information, prepare a medical history draft, and manage treatment
+          records for the selected patient.
         </p>
       </header>
 
@@ -45,6 +47,7 @@ export function ClinicalRecordsPage({ patient }: { patient: ClinicalPatientRefer
       <div className="space-y-6">
         <MedicalHistoryForm patient={patient} record={null} />
         <DentalChart patient={patient} charts={[]} toothExaminations={[]} />
+        <TreatmentRecords patient={patient} records={[]} />
       </div>
     </div>
   )

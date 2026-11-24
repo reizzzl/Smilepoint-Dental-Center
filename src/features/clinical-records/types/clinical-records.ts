@@ -40,3 +40,29 @@ export interface ToothExaminationRecord {
   remarks: string | null
   updated_at: string
 }
+
+export interface TreatmentRecord {
+  treatment_id: string
+  patient_id: string
+  appointment_id: string | null
+  service_id: string | null
+  performed_by: string | null
+  tooth_number: number | null
+  diagnosis: string | null
+  procedure_done: string
+  treatment_date: string
+  notes: string | null
+  created_at: string
+}
+
+export interface TreatmentRecordDraft {
+  patient_id: string
+  appointment_id: string | null
+  service_id: string | null
+  performed_by: string | null
+  tooth_number: number | null
+  diagnosis: string | null
+  procedure_done: string
+  treatment_date: string
+  notes: string | null
+}
