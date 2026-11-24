@@ -120,6 +120,38 @@ const filtered = appointments.filter((appointment) => {
       )
     );
   }
+  function startRescheduling(appointment) {
+  if (appointment.status !== "Scheduled") return;
+
+  setRescheduling(appointment);
+
+  setRescheduleForm({
+    date: appointment.date,
+    time: appointment.time,
+  });
+  
+}
+
+function saveReschedule(e) {
+  e.preventDefault();
+
+  if (!rescheduling) return;
+
+  setAppointments((current) =>
+    current.map((appointment) =>
+      appointment.id === rescheduling.id
+        ? {
+            ...appointment,
+            date: rescheduleForm.date,
+            time: rescheduleForm.time,
+          }
+        : appointment
+    )
+  );
+
+  setRescheduling(null);
+  setRescheduleForm({ date: "", time: "" });
+}
 
   return (
     <div className="sp-page">
@@ -340,6 +372,7 @@ const filtered = appointments.filter((appointment) => {
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
 
@@ -364,11 +397,23 @@ const filtered = appointments.filter((appointment) => {
                         <option value="Cancelled">Cancelled</option>
                       </select>
                     </td>
+
+<td>
+  <button
+    type="button"
+    className="sp-action-btn"
+    disabled={item.status !== "Scheduled"}
+    onClick={() => startRescheduling(item)}
+  >
+    Reschedule
+  </button>
+</td>
+
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="sp-empty">
+                  <td colSpan="7" className="sp-empty">
                     No appointments found.
                   </td>
                 </tr>
@@ -377,6 +422,62 @@ const filtered = appointments.filter((appointment) => {
           </table>
         </div>
       </div>
+
+{rescheduling && (
+  <div className="sp-overlay">
+    <div className="sp-modal">
+      <div className="sp-modal-header">
+        <h2>Reschedule Appointment</h2>
+
+        <button
+          type="button"
+          className="sp-icon-btn"
+          onClick={() => setRescheduling(null)}
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <form className="sp-form" onSubmit={saveReschedule}>
+        <label>Patient</label>
+        <input
+          value={rescheduling.patient}
+          disabled
+        />
+
+        <label>New Appointment Date</label>
+        <input
+          type="date"
+          required
+          value={rescheduleForm.date}
+          onChange={(e) =>
+            setRescheduleForm({
+              ...rescheduleForm,
+              date: e.target.value,
+            })
+          }
+        />
+
+        <label>New Appointment Time</label>
+        <input
+          type="time"
+          required
+          value={rescheduleForm.time}
+          onChange={(e) =>
+            setRescheduleForm({
+              ...rescheduleForm,
+              time: e.target.value,
+            })
+          }
+        />
+
+        <button type="submit" className="sp-primary-btn">
+          Save New Schedule
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
       {showForm && (
         <div className="sp-overlay">
