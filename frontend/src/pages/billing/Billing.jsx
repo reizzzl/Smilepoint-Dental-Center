@@ -3,8 +3,12 @@ import { Receipt, Wallet, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../shared.css";
 
-const paymentMethods = ["Cash", "GCash", "Bank Transfer"];
-const paymentFields = "id, treatment_id, amount, method, created_at";
+const paymentMethods = {
+  cash: "Cash",
+  gcash: "GCash",
+  bank_transfer: "Bank Transfer",
+};
+const paymentFields = "payment_id, treatment_id, amount, payment_method, payment_status, paid_at";
 const pageSize = 100;
 const currency = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -16,12 +20,12 @@ const paymentDate = new Intl.DateTimeFormat("en-PH", {
 });
 
 const toCents = (amount) => Math.round(Number(amount) * 100);
-const peso = (cents) => currency.format(cents / 100);
+const peso = (cents) => cents === null ? "—" : currency.format(cents / 100);
 
 function billingError(error) {
   const schemaErrors = ["42703", "42P01", "PGRST200", "PGRST204", "PGRST205"];
   if (schemaErrors.includes(error.code)) {
-    return "Billing needs the treatment-linked payment schema from the development guide.";
+    return "Billing could not find the expected tables or columns in the connected database.";
   }
   if (error.code === "42501") {
     return "Your staff account does not have permission for this billing action.";
@@ -44,9 +48,10 @@ async function readPages(query, signal) {
 function loadPatients(signal) {
   return readPages(
     () => supabase.from("patient")
-      .select("id, full_name")
-      .order("full_name")
-      .order("id"),
+      .select("patient_id, first_name, middle_name, last_name")
+      .order("last_name")
+      .order("first_name")
+      .order("patient_id"),
     signal
   );
 }
@@ -55,18 +60,18 @@ async function loadLedger(patientId, signal) {
   const [treatments, payments] = await Promise.all([
     readPages(
       () => supabase.from("treatment_record")
-        .select("id, treatment, treatment_date, fee")
+        .select("treatment_id, appointment_id, procedure_done, treatment_date, dental_service(base_price)")
         .eq("patient_id", patientId)
         .order("treatment_date", { ascending: false })
-        .order("id"),
+        .order("treatment_id"),
       signal
     ),
     readPages(
       () => supabase.from("payment")
-        .select(paymentFields + ", treatment_record!inner(patient_id)")
-        .eq("treatment_record.patient_id", patientId)
-        .order("created_at", { ascending: false })
-        .order("id"),
+        .select(paymentFields)
+        .eq("patient_id", patientId)
+        .order("paid_at", { ascending: false })
+        .order("payment_id"),
       signal
     ),
   ]);
@@ -76,24 +81,27 @@ async function loadLedger(patientId, signal) {
 
 function summarizeLedger({ treatments, payments }) {
   const paidByTreatment = new Map();
-  let totalPaid = 0;
 
   for (const payment of payments) {
+    if (!payment.treatment_id || payment.payment_status !== "paid") continue;
     const amount = toCents(payment.amount);
     const previous = paidByTreatment.get(payment.treatment_id) ?? 0;
     paidByTreatment.set(payment.treatment_id, previous + amount);
-    totalPaid += amount;
   }
 
-  let totalCharges = 0;
   const charges = treatments.map((treatment) => {
-    const fee = toCents(treatment.fee);
-    const paid = paidByTreatment.get(treatment.id) ?? 0;
-    totalCharges += fee;
-    return { ...treatment, fee, paid, balance: fee - paid };
+    const price = treatment.dental_service?.base_price;
+    const fee = price == null ? null : toCents(price);
+    const paid = paidByTreatment.get(treatment.treatment_id) ?? 0;
+    return { ...treatment, fee, paid, balance: fee === null ? null : fee - paid };
   });
 
-  return { charges, totalCharges, totalPaid, balance: totalCharges - totalPaid };
+  const hasMissingPrice = charges.some(({ fee }) => fee === null);
+  const totalCharges = hasMissingPrice ? null : charges.reduce((sum, item) => sum + item.fee, 0);
+  const totalPaid = charges.reduce((sum, item) => sum + item.paid, 0);
+  const balance = totalCharges === null ? null : totalCharges - totalPaid;
+
+  return { charges, totalCharges, totalPaid, balance };
 }
 
 export default function Billing() {
@@ -149,8 +157,10 @@ export default function Billing() {
   }, [patientId, ledgerRefresh]);
 
   const summary = ledger && summarizeLedger(ledger);
-  const treatmentNames = new Map(ledger?.treatments.map(({ id, treatment }) => [id, treatment]));
-  const selectedTreatment = summary?.charges.find((item) => item.id === treatmentId);
+  const treatmentNames = new Map(
+    ledger?.treatments.map(({ treatment_id, procedure_done }) => [treatment_id, procedure_done])
+  );
+  const selectedTreatment = summary?.charges.find((item) => item.treatment_id === treatmentId);
 
   function clearLedger() {
     setLedger(null);
@@ -169,7 +179,7 @@ export default function Billing() {
   }
 
   function openPayment(treatment) {
-    setTreatmentId(treatment.id);
+    setTreatmentId(treatment.treatment_id);
     setAmount("");
     setMethod("");
     setPaymentError("");
@@ -179,7 +189,7 @@ export default function Billing() {
 
   async function recordPayment(event) {
     event.preventDefault();
-    if (saving || !selectedTreatment) return;
+    if (saving || !selectedTreatment || selectedTreatment.balance === null) return;
 
     const enteredAmount = amount.trim();
     const cents = toCents(enteredAmount);
@@ -192,7 +202,7 @@ export default function Billing() {
       setPaymentError("The amount exceeds this treatment's remaining balance.");
       return;
     }
-    if (!paymentMethods.includes(method)) {
+    if (!Object.hasOwn(paymentMethods, method)) {
       setPaymentError("Select a payment method.");
       return;
     }
@@ -201,7 +211,14 @@ export default function Billing() {
     setPaymentError("");
     try {
       const { data, error } = await supabase.from("payment")
-        .insert({ treatment_id: selectedTreatment.id, amount: cents / 100, method })
+        .insert({
+          patient_id: patientId,
+          appointment_id: selectedTreatment.appointment_id,
+          treatment_id: selectedTreatment.treatment_id,
+          amount: cents / 100,
+          payment_method: method,
+          payment_status: "paid",
+        })
         .select(paymentFields)
         .single();
       if (error) throw error;
@@ -229,8 +246,9 @@ export default function Billing() {
             <select id="billing-patient" value={patientId} onChange={selectPatient}>
               <option value="">Select a patient</option>
               {patients.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.full_name} ({String(patient.id).slice(0, 8)})
+                <option key={patient.patient_id} value={patient.patient_id}>
+                  {[patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(" ")}
+                  {" (" + patient.patient_id.slice(0, 8) + ")"}
                 </option>
               ))}
             </select>
@@ -274,7 +292,7 @@ export default function Billing() {
           <div className="sp-stats-grid" aria-label="Selected patient's totals">
             {[
               { title: "Total Charges", value: summary.totalCharges, Icon: Receipt },
-              { title: "Total Paid", value: summary.totalPaid, Icon: Wallet },
+              { title: "Payments Applied", value: summary.totalPaid, Icon: Wallet },
               { title: "Remaining Balance", value: summary.balance, Icon: Wallet },
             ].map(({ title, value, Icon }) => (
               <div key={title} className="sp-stat-card">
@@ -294,6 +312,10 @@ export default function Billing() {
                 Refresh
               </button>
             </div>
+            <p>Balances use current prices and paid transactions linked to each treatment.</p>
+            {summary.totalCharges === null && (
+              <p role="status">Link a priced dental service to each treatment to calculate the full balance.</p>
+            )}
             <div className="sp-table-scroll">
               <table className="sp-table">
                 <thead>
@@ -308,8 +330,8 @@ export default function Billing() {
                 </thead>
                 <tbody>
                   {summary.charges.map((treatment) => (
-                    <tr key={treatment.id}>
-                      <td>{treatment.treatment}</td>
+                    <tr key={treatment.treatment_id}>
+                      <td>{treatment.procedure_done}</td>
                       <td>{treatment.treatment_date || "—"}</td>
                       <td>{peso(treatment.fee)}</td>
                       <td>{peso(treatment.paid)}</td>
@@ -319,7 +341,7 @@ export default function Billing() {
                           <button
                             type="button"
                             className="sp-action-btn"
-                            aria-label={"Record payment for " + treatment.treatment}
+                            aria-label={"Record payment for " + treatment.procedure_done}
                             onClick={() => openPayment(treatment)}
                           >
                             Record Payment
@@ -343,20 +365,22 @@ export default function Billing() {
                     <th scope="col">Date Recorded</th>
                     <th scope="col">Treatment</th>
                     <th scope="col">Payment Method</th>
+                    <th scope="col">Status</th>
                     <th scope="col">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ledger.payments.map((payment) => (
-                    <tr key={payment.id}>
-                      <td>{payment.created_at ? paymentDate.format(new Date(payment.created_at)) : "—"}</td>
+                    <tr key={payment.payment_id}>
+                      <td>{paymentDate.format(new Date(payment.paid_at))}</td>
                       <td>{treatmentNames.get(payment.treatment_id) ?? "—"}</td>
-                      <td>{payment.method}</td>
+                      <td>{paymentMethods[payment.payment_method] ?? payment.payment_method}</td>
+                      <td>{payment.payment_status}</td>
                       <td>{peso(toCents(payment.amount))}</td>
                     </tr>
                   ))}
                   {!ledger.payments.length && (
-                    <tr><td colSpan={4} className="sp-empty">No payments recorded.</td></tr>
+                    <tr><td colSpan={5} className="sp-empty">No payments recorded.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -386,7 +410,7 @@ export default function Billing() {
 
         {selectedTreatment && (
           <p>
-            {selectedTreatment.treatment} · Balance {peso(selectedTreatment.balance)}
+            {selectedTreatment.procedure_done} · Balance {peso(selectedTreatment.balance)}
           </p>
         )}
 
@@ -396,7 +420,7 @@ export default function Billing() {
             id="billing-payment-amount"
             type="number"
             min="0.01"
-            max={selectedTreatment ? selectedTreatment.balance / 100 : undefined}
+            max={selectedTreatment?.balance == null ? undefined : selectedTreatment.balance / 100}
             step="0.01"
             required
             value={amount}
@@ -413,7 +437,9 @@ export default function Billing() {
             disabled={saving}
           >
             <option value="">Select a payment method</option>
-            {paymentMethods.map((option) => <option key={option}>{option}</option>)}
+            {Object.entries(paymentMethods).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </select>
 
           {paymentError && <p className="sp-error" role="alert">{paymentError}</p>}
