@@ -7,71 +7,66 @@ import type {
 } from '../types/clinical-records'
 
 const emptyDraft: MedicalHistoryDraft = {
-  existingConditions: '',
   allergies: '',
   currentMedications: '',
-  previousDentalHistory: '',
-  clinicalNotes: '',
+  bloodPressure: '',
+  additionalNotes: '',
 }
 
 const fields: {
   name: keyof MedicalHistoryDraft
+  column: 'allergies' | 'current_medications' | 'blood_pressure' | 'additional_notes'
   label: string
   description: string
-  maxLength: number
   rows: number
-  list?: boolean
 }[] = [
   {
-    name: 'existingConditions',
-    label: 'Existing medical conditions',
-    description: 'List relevant conditions, one per line.',
-    maxLength: 3000,
-    rows: 3,
-    list: true,
-  },
-  {
     name: 'allergies',
+    column: 'allergies',
     label: 'Allergies',
-    description: 'List known allergies, one per line.',
-    maxLength: 2000,
+    description: 'Allergy information.',
     rows: 3,
-    list: true,
   },
   {
     name: 'currentMedications',
+    column: 'current_medications',
     label: 'Current medications',
-    description: 'List current medications, one per line.',
-    maxLength: 3000,
-    rows: 3,
-    list: true,
-  },
-  {
-    name: 'previousDentalHistory',
-    label: 'Previous dental history',
-    description: 'Relevant prior dental procedures or history.',
-    maxLength: 3000,
+    description: 'Current medication information.',
     rows: 3,
   },
   {
-    name: 'clinicalNotes',
-    label: 'Clinical notes',
-    description: 'Additional notes for the clinical record.',
-    maxLength: 5000,
+    name: 'bloodPressure',
+    column: 'blood_pressure',
+    label: 'Blood pressure',
+    description: 'Blood pressure information.',
+    rows: 1,
+  },
+  {
+    name: 'additionalNotes',
+    column: 'additional_notes',
+    label: 'Additional notes',
+    description: 'Additional notes associated with this medical history.',
     rows: 4,
   },
 ]
 
-function toDraft(record: MedicalHistoryRecord | null): MedicalHistoryDraft {
-  if (!record) return { ...emptyDraft }
+function toDraft(record: MedicalHistoryRecord | null) {
+  const draft = { ...emptyDraft }
+  const incompatibleColumns: string[] = []
 
-  return {
-    existingConditions: record.existingConditions.join('\n'),
-    allergies: record.allergies.join('\n'),
-    currentMedications: record.currentMedications.join('\n'),
-    previousDentalHistory: record.previousDentalHistory ?? '',
-    clinicalNotes: record.clinicalNotes ?? '',
+  if (!record) return { draft, incompatibleColumns }
+
+  for (const field of fields) {
+    const value = record[field.column]
+    if (value === null || value === undefined) continue
+    if (typeof value !== 'string') {
+      incompatibleColumns.push(field.column)
+      continue
+    }
+    draft[field.name] = value
   }
+
+  return { draft, incompatibleColumns }
 }
 
 export function MedicalHistoryForm({
@@ -81,11 +76,15 @@ export function MedicalHistoryForm({
   patient: ClinicalPatientReference | null
   record: MedicalHistoryRecord | null
 }) {
-  const [draft, setDraft] = useState(() => toDraft(record))
+  const [initialRecord] = useState(() => toDraft(record))
+  const [draft, setDraft] = useState(initialRecord.draft)
+  const [incompatibleColumns, setIncompatibleColumns] = useState(initialRecord.incompatibleColumns)
   const [feedback, setFeedback] = useState('')
 
   useEffect(() => {
-    setDraft(toDraft(record))
+    const nextRecord = toDraft(record)
+    setDraft(nextRecord.draft)
+    setIncompatibleColumns(nextRecord.incompatibleColumns)
     setFeedback('')
   }, [patient?.patientId, record])
 
@@ -94,16 +93,17 @@ export function MedicalHistoryForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const invalidField = fields.find((field) => draft[field.name].length > field.maxLength)
-    if (invalidField) {
-      setFeedback(`${invalidField.label} exceeds the ${invalidField.maxLength} character limit.`)
+    if (incompatibleColumns.length > 0) {
+      setFeedback(
+        `Draft review is blocked until these column types are confirmed: ${incompatibleColumns.join(', ')}.`,
+      )
       return
     }
 
     setFeedback(
-      patient
-        ? 'Draft validated. It has not been saved because clinical record integration is pending.'
-        : 'Draft validated for this page only. No patient is connected, and nothing has been saved.',
+      hasInformation
+        ? 'Draft text is ready for review. It remains local; no API request was made.'
+        : 'The draft is empty. No data was sent.',
     )
   }
 
@@ -136,28 +136,35 @@ export function MedicalHistoryForm({
           </div>
         )}
 
+        {incompatibleColumns.length > 0 && (
+          <p
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            role="alert"
+          >
+            Could not display {incompatibleColumns.join(', ')} as text. Confirm the backend column
+            types before integrating these values.
+          </p>
+        )}
+
         <div className="grid gap-5 md:grid-cols-2">
           {fields.map((field) => (
             <label
-              className={`block ${field.name === 'clinicalNotes' ? 'md:col-span-2' : ''}`}
+              className={`block ${field.name === 'additionalNotes' ? 'md:col-span-2' : ''}`}
               key={field.name}
             >
               <span className="block text-sm font-medium text-slate-800">{field.label}</span>
               <span className="mt-1 block text-xs text-slate-500">{field.description}</span>
               <textarea
                 className="mt-2 block w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                maxLength={field.maxLength}
+                name={field.column}
                 onChange={(event) => {
                   setDraft((current) => ({ ...current, [field.name]: event.target.value }))
                   setFeedback('')
                 }}
-                placeholder={field.list ? 'No information entered' : 'Enter information'}
+                placeholder="Enter information"
                 rows={field.rows}
                 value={draft[field.name]}
               />
-              <span className="mt-1 block text-right text-xs text-slate-400">
-                {draft[field.name].length}/{field.maxLength}
-              </span>
             </label>
           ))}
         </div>
@@ -170,7 +177,8 @@ export function MedicalHistoryForm({
 
         <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-xl text-xs leading-5 text-slate-500">
-            Drafts exist only in this page session. They are not associated with a patient or saved.
+            This is a page-local draft. No API request is made because the supplied backend fields
+            do not fully match the actual Supabase columns.
           </p>
           <div className="flex shrink-0 gap-2">
             <button
@@ -187,7 +195,7 @@ export function MedicalHistoryForm({
               className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
               type="submit"
             >
-              Validate draft
+              Review draft
             </button>
           </div>
         </div>
