@@ -9,7 +9,7 @@ test('schema, seed data, constraints, and direct Supabase-style access', async (
   const db = await PGlite.create();
   t.after(() => db.close());
 
-  // Minimal Supabase Auth schema for testing the real application SQL in PostgreSQL.
+  // Set up just enough of Supabase Auth to run our schema locally.
   await db.exec(`
     create role anon;
     create role authenticated;

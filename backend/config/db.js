@@ -10,7 +10,7 @@ function createDatabase(url, publishableKey) {
   if (publishableKey.startsWith('sb_secret_')) {
     throw new Error('SUPABASE_PUBLISHABLE_KEY must be a public project key');
   }
-  // Legacy Supabase API keys are JWTs. Reject a service-role key before use.
+  // Older Supabase keys store the role inside the JWT.
   const [, payload] = publishableKey.split('.');
   if (payload) {
     try {
@@ -28,6 +28,7 @@ function createDatabase(url, publishableKey) {
 
   return {
     getUser: (token) => auth.getUser(token),
+    // Forward the staff member's token so Supabase applies their row policies.
     forUser: (token) => createClient(url, publishableKey, { accessToken: async () => token }),
   };
 }

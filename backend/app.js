@@ -15,6 +15,7 @@ const notes = optional(text(4000));
 const staffRole = choice(...allStaff);
 const staffColumns = 'id,full_name,role,active,created_at';
 
+// Keep these roles in sync with the policies in database/smilepoint.sql.
 const resources = [
   {
     path: 'patients', table: 'patient', read: allStaff, write: frontDesk,
@@ -182,6 +183,7 @@ function registerClinicalRecord(api, { path, table, fields }) {
   api.put(endpoint, requireRole(dentist), async (req, res) => {
     const id = readId(req.params.patientId, 'patientId');
     const input = readBody(req.body, validators, [], true);
+    // PUT replaces the whole record, so omitted fields go back to their defaults.
     const values = Object.fromEntries(Object.entries(fields).map(([key, [column, , fallback]]) => [
       column, Object.hasOwn(input, key) ? input[key] : fallback,
     ]));
@@ -214,6 +216,7 @@ function createApp({ database, origins = [] }) {
     if (!data?.user) throw new HttpError(401, 'Invalid or expired access token');
 
     req.db = database.forUser(token);
+    // Check the staff profile on every request so deactivation takes effect on the next request.
     req.staff = databaseData(await req.db.from('staff_profile')
       .select(staffColumns).eq('id', data.user.id).maybeSingle());
     if (!req.staff?.active || !staffRole(req.staff.role)) throw new HttpError(403, 'Active clinic staff access required');

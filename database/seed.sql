@@ -1,5 +1,6 @@
 begin;
 
+-- The fixed IDs let us rerun this file without replacing the sample rows.
 insert into public.patient (id, full_name, sex, date_of_birth, email) values
   ('10000000-0000-4000-8000-000000000001', 'Demo Patient Andrea', 'Female', '1996-04-12', 'andrea@example.invalid'),
   ('10000000-0000-4000-8000-000000000002', 'Demo Patient Marco', 'Male', '1989-09-03', 'marco@example.invalid')

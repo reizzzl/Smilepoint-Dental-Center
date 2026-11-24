@@ -90,7 +90,7 @@ create schema if not exists smilepoint_private;
 revoke all on schema smilepoint_private from public;
 grant usage on schema smilepoint_private to authenticated;
 
--- Read the caller's server-managed role without recursing through staff RLS.
+-- Look up the caller's role without running the staff profile policy again.
 create function smilepoint_private.current_staff_role()
 returns public.staff_role
 language sql stable security definer set search_path = ''
@@ -100,7 +100,7 @@ $$;
 revoke all on function smilepoint_private.current_staff_role() from public;
 grant execute on function smilepoint_private.current_staff_role() to authenticated;
 
--- Appointment writers can assign active dentists without reading the staff directory.
+-- Check that the dentist is active when assigned. Existing bookings keep their assignment.
 create function smilepoint_private.validate_appointment_dentist()
 returns trigger
 language plpgsql security definer set search_path = ''
@@ -125,7 +125,7 @@ create trigger validate_appointment_dentist
 before insert or update of dentist_id on public.appointment
 for each row execute function smilepoint_private.validate_appointment_dentist();
 
--- Apply the same clinic roles to direct Supabase clients and to the backend.
+-- Each row lists who can read the table, who can write, and which fields they can change.
 do $$
 declare
   resource record;

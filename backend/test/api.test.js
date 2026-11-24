@@ -33,7 +33,7 @@ async function withApi(t, handleDataRequest) {
         if (!Object.hasOwn(ids, role)) {
           return respond(401, { message: 'Expired token', error_code: 'bad_jwt' });
         }
-        // The API must use the stored profile, even if editable Auth metadata claims to be admin.
+        // Put admin in editable metadata to check that permissions still come from the staff profile.
         return respond(200, { id: ids[role], user_metadata: { role: 'admin' } });
       }
       assert.ok(token?.startsWith('access-'));
