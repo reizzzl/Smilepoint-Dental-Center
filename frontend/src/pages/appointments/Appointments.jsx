@@ -5,22 +5,83 @@ import "../shared.css";
 export default function Appointments() {
   const [appointments, setAppointments] = useState([]);
   const [search, setSearch] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+
+const [calendarMonth, setCalendarMonth] = useState(() => {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), 1);
+});
+
+const firstDay = calendarMonth.getDay();
+
+const daysInMonth = new Date(
+  calendarMonth.getFullYear(),
+  calendarMonth.getMonth() + 1,
+  0
+).getDate();
+
+const calendarDays = Array.from(
+  { length: firstDay + daysInMonth },
+  (_, index) => (index < firstDay ? null : index - firstDay + 1)
+);
+
+function selectCalendarDate(day) {
+
+function getBookingCount(day) {
+  const year = calendarMonth.getFullYear();
+  const month = String(
+    calendarMonth.getMonth() + 1
+  ).padStart(2, "0");
+
+  const date = String(day).padStart(2, "0");
+  const selectedDay = `${year}-${month}-${date}`;
+
+  return appointments.filter(
+    (appointment) =>
+      appointment.date === selectedDay &&
+      appointment.status === "Scheduled"
+  ).length;
+}
+
+  const year = calendarMonth.getFullYear();
+  const month = String(calendarMonth.getMonth() + 1).padStart(2, "0");
+  const date = String(day).padStart(2, "0");
+
+  setSelectedDate(`${year}-${month}-${date}`);
+}
+
   const [showForm, setShowForm] = useState(false);
 
+const [rescheduling, setRescheduling] = useState(null);
+
+const [rescheduleForm, setRescheduleForm] = useState({
+  date: "",
+  time: "",
+});
+
   const emptyForm = {
-    patient: "",
-    service: "",
-    date: "",
-    time: "",
-  };
+  patient: "",
+  service: "",
+  date: "",
+  time: "",
+  visitType: "Scheduled",
+};
 
   const [form, setForm] = useState(emptyForm);
 
-  const filtered = appointments.filter((appointment) =>
+  
+const filtered = appointments.filter((appointment) => {
+  const matchesSearch =
     `${appointment.patient} ${appointment.service} ${appointment.status}`
       .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+      .includes(search.toLowerCase());
+
+  const matchesDate =
+    !selectedDate || appointment.date === selectedDate;
+
+  return matchesSearch && matchesDate;
+});
+
 
   const scheduledCount = appointments.filter(
     (item) => item.status === "Scheduled"
@@ -59,6 +120,38 @@ export default function Appointments() {
       )
     );
   }
+  function startRescheduling(appointment) {
+  if (appointment.status !== "Scheduled") return;
+
+  setRescheduling(appointment);
+
+  setRescheduleForm({
+    date: appointment.date,
+    time: appointment.time,
+  });
+  
+}
+
+function saveReschedule(e) {
+  e.preventDefault();
+
+  if (!rescheduling) return;
+
+  setAppointments((current) =>
+    current.map((appointment) =>
+      appointment.id === rescheduling.id
+        ? {
+            ...appointment,
+            date: rescheduleForm.date,
+            time: rescheduleForm.time,
+          }
+        : appointment
+    )
+  );
+
+  setRescheduling(null);
+  setRescheduleForm({ date: "", time: "" });
+}
 
   return (
     <div className="sp-page">
@@ -108,6 +201,130 @@ export default function Appointments() {
         </div>
       </div>
 
+
+<div className="sp-panel" style={{ marginBottom: 20 }}>
+  <div className="sp-panel-top">
+    <h2>Appointment Calendar</h2>
+
+    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <button
+        type="button"
+        className="sp-action-btn"
+        onClick={() =>
+          setCalendarMonth(
+            new Date(
+              calendarMonth.getFullYear(),
+              calendarMonth.getMonth() - 1,
+              1
+            )
+          )
+        }
+      >
+        Previous
+      </button>
+
+      <strong>
+        {calendarMonth.toLocaleDateString("en-PH", {
+          month: "long",
+          year: "numeric",
+        })}
+      </strong>
+
+      <button
+        type="button"
+        className="sp-action-btn"
+        onClick={() =>
+          setCalendarMonth(
+            new Date(
+              calendarMonth.getFullYear(),
+              calendarMonth.getMonth() + 1,
+              1
+            )
+          )
+        }
+      >
+        Next
+      </button>
+    </div>
+  </div>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+      gap: 8,
+      marginTop: 20,
+    }}
+  >
+    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+      (day) => (
+        <strong key={day} style={{ textAlign: "center" }}>
+          {day}
+        </strong>
+      )
+    )}
+
+    {calendarDays.map((day, index) =>
+      day === null ? (
+        <div key={`empty-${index}`} />
+      ) : (
+        <button
+          key={day}
+          type="button"
+          onClick={() => selectCalendarDate(day)}
+          style={{
+            padding: "15px 5px",
+            borderRadius: 8,
+            border: "1px solid #dce6e8",
+            cursor: "pointer",
+            background:
+              selectedDate ===
+              `${calendarMonth.getFullYear()}-${String(
+                calendarMonth.getMonth() + 1
+              ).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                ? "#16858b"
+                : "#ffffff",
+            color:
+              selectedDate ===
+              `${calendarMonth.getFullYear()}-${String(
+                calendarMonth.getMonth() + 1
+              ).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                ? "#ffffff"
+                : "#243b43",
+          }}
+        >
+          {day}
+
+{appointments.filter((appointment) => {
+  const year = calendarMonth.getFullYear();
+  const month = String(calendarMonth.getMonth() + 1).padStart(2, "0");
+  const date = String(day).padStart(2, "0");
+
+  return (
+    appointment.date === `${year}-${month}-${date}` &&
+    appointment.status !== "Cancelled"
+  );
+}).length > 0 && (
+  <small style={{ display: "block", marginTop: 4 }}>
+    {appointments.filter((appointment) => {
+      const year = calendarMonth.getFullYear();
+      const month = String(calendarMonth.getMonth() + 1).padStart(2, "0");
+      const date = String(day).padStart(2, "0");
+
+      return (
+        appointment.date === `${year}-${month}-${date}` &&
+        appointment.status !== "Cancelled"
+      );
+    }).length} booked
+  </small>
+)}
+
+        </button>
+      )
+    )}
+  </div>
+</div>
+
       <div className="sp-panel">
         <div className="sp-panel-top">
           <h2>Appointment List</h2>
@@ -121,6 +338,28 @@ export default function Appointments() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+<div className="sp-date-filter">
+  <label htmlFor="appointment-date-filter">
+    Filter by Date
+  </label>
+
+  <input
+    id="appointment-date-filter"
+    type="date"
+    value={selectedDate}
+    onChange={(e) => setSelectedDate(e.target.value)}
+  />
+
+  <button
+    type="button"
+    className="sp-action-btn"
+    onClick={() => setSelectedDate("")}
+  >
+    All Dates
+  </button>
+</div>
+
         </div>
 
         <div className="sp-table-scroll">
@@ -133,6 +372,7 @@ export default function Appointments() {
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
 
@@ -157,11 +397,23 @@ export default function Appointments() {
                         <option value="Cancelled">Cancelled</option>
                       </select>
                     </td>
+
+<td>
+  <button
+    type="button"
+    className="sp-action-btn"
+    disabled={item.status !== "Scheduled"}
+    onClick={() => startRescheduling(item)}
+  >
+    Reschedule
+  </button>
+</td>
+
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="sp-empty">
+                  <td colSpan="7" className="sp-empty">
                     No appointments found.
                   </td>
                 </tr>
@@ -170,6 +422,62 @@ export default function Appointments() {
           </table>
         </div>
       </div>
+
+{rescheduling && (
+  <div className="sp-overlay">
+    <div className="sp-modal">
+      <div className="sp-modal-header">
+        <h2>Reschedule Appointment</h2>
+
+        <button
+          type="button"
+          className="sp-icon-btn"
+          onClick={() => setRescheduling(null)}
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <form className="sp-form" onSubmit={saveReschedule}>
+        <label>Patient</label>
+        <input
+          value={rescheduling.patient}
+          disabled
+        />
+
+        <label>New Appointment Date</label>
+        <input
+          type="date"
+          required
+          value={rescheduleForm.date}
+          onChange={(e) =>
+            setRescheduleForm({
+              ...rescheduleForm,
+              date: e.target.value,
+            })
+          }
+        />
+
+        <label>New Appointment Time</label>
+        <input
+          type="time"
+          required
+          value={rescheduleForm.time}
+          onChange={(e) =>
+            setRescheduleForm({
+              ...rescheduleForm,
+              time: e.target.value,
+            })
+          }
+        />
+
+        <button type="submit" className="sp-primary-btn">
+          Save New Schedule
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
       {showForm && (
         <div className="sp-overlay">
@@ -186,6 +494,33 @@ export default function Appointments() {
             </div>
 
             <form className="sp-form" onSubmit={addAppointment}>
+              
+<label>Appointment Type</label>
+
+<select
+  value={form.visitType}
+  onChange={(e) => {
+    const visitType = e.target.value;
+    const now = new Date();
+
+    const today = `${now.getFullYear()}-${String(
+      now.getMonth() + 1
+    ).padStart(2, "0")}-${String(
+      now.getDate()
+    ).padStart(2, "0")}`;
+
+    setForm({
+      ...form,
+      visitType,
+      date: visitType === "Walk-in" ? today : "",
+    });
+  }}
+>
+
+  <option value="Scheduled">Scheduled Appointment</option>
+  <option value="Walk-in">Walk-in Patient</option>
+</select>
+
               <label>Patient Name</label>
               <input
                 required
@@ -211,6 +546,7 @@ export default function Appointments() {
                 type="date"
                 required
                 value={form.date}
+                disabled={form.visitType === "Walk-in"}
                 onChange={(e) =>
                   setForm({ ...form, date: e.target.value })
                 }
