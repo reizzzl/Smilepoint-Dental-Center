@@ -134,7 +134,19 @@ async function addPatient(e) {
   }
 }
 
+
 function startEditing() {
+  if (!selected) return;
+
+  setEditForm({
+    name: selected.name ?? "",
+    dob: selected.date_of_birth?.slice(0, 10) ?? "",
+    gender: selected.gender ?? "",
+    contact: selected.contact ?? "",
+  });
+
+  setIsEditing(true);
+}
 
 async function saveEditedPatient(e) {
   e.preventDefault();
@@ -154,6 +166,7 @@ async function saveEditedPatient(e) {
       .map(Number);
 
     const today = new Date();
+
     const age =
       today.getFullYear() -
       year -
@@ -165,6 +178,7 @@ async function saveEditedPatient(e) {
 
     const patient = {
       ...updated,
+      id: updated.id ?? selected.id,
       name: updated.full_name,
       age,
       gender: updated.sex ?? "",
@@ -184,16 +198,6 @@ async function saveEditedPatient(e) {
   } catch (error) {
     alert(`Unable to update patient: ${error.message}`);
   }
-}
-
-  setEditForm({
-    name: selected.name ?? "",
-    dob: selected.date_of_birth?.slice(0, 10) ?? "",
-    gender: selected.gender ?? "",
-    contact: selected.contact ?? "",
-  });
-
-  setIsEditing(true);
 }
 
   function closeModal() {
