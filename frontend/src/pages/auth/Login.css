@@ -1,0 +1,380 @@
+
+/* ========================================
+   SMILEPOINT LOGIN PAGE
+======================================== */
+
+.smile-login-page,
+.smile-login-page * {
+  box-sizing: border-box;
+}
+
+.smile-login-page {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  width: 100%;
+  padding: 24px;
+  background: #ffffff;
+  color: #203943;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* LEFT SIDE — BRANDING */
+
+.smile-login-branding {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 35px;
+  min-height: calc(100vh - 48px);
+  padding: 42px;
+  background: #123f49;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.smile-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.smile-login-brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 51px;
+  height: 51px;
+  background: #24636a;
+  color: #8ce0d5;
+  border-radius: 13px;
+}
+
+.smile-login-brand h1 {
+  margin: 0 0 3px;
+  color: #ffffff;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.smile-login-brand span {
+  color: #b7d1d5;
+  font-size: 13px;
+}
+
+/* CLINIC IMAGE */
+
+.smile-login-hero {
+  width: 100%;
+  height: clamp(230px, 42vh, 450px);
+  overflow: hidden;
+  border-radius: 15px;
+  background: linear-gradient(
+    135deg,
+    #24636a,
+    #16858a
+  );
+}
+
+.smile-login-hero img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* CLINIC TAGLINE */
+
+.smile-login-tagline-label {
+  color: #8ce0d5;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.smile-login-tagline h2 {
+  max-width: 520px;
+  margin: 15px 0;
+  color: #ffffff;
+  font-size: clamp(24px, 2.6vw, 38px);
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.7px;
+}
+
+.smile-login-tagline p {
+  margin: 0;
+  color: #b7d1d5;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* RIGHT SIDE — LOGIN FORM */
+
+.smile-login-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 45px;
+  background: #ffffff;
+}
+
+.smile-login-form-wrapper {
+  width: 100%;
+  max-width: 400px;
+}
+
+.smile-login-heading {
+  margin-bottom: 30px;
+}
+
+.smile-login-heading h2 {
+  margin: 0 0 10px;
+  color: #203943;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.smile-login-heading p {
+  margin: 0;
+  color: #7c8d97;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ERROR MESSAGE */
+
+.smile-login-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 13px;
+  background: #fff2f2;
+  border: 1px solid #f4cccc;
+  border-radius: 9px;
+  color: #bd4545;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.smile-login-error svg {
+  flex-shrink: 0;
+}
+
+/* FORM FIELDS */
+
+.smile-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 23px;
+}
+
+.smile-login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.smile-login-field label {
+  color: #344d56;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.smile-login-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 51px;
+  padding: 0 14px;
+  background: #ffffff;
+  border: 1px solid #dce6e9;
+  border-radius: 9px;
+  transition: 0.2s ease;
+}
+
+.smile-login-input:focus-within {
+  border-color: #16858a;
+  box-shadow: 0 0 0 3px rgba(22, 133, 138, 0.1);
+}
+
+.smile-login-input > svg {
+  flex-shrink: 0;
+  color: #84959e;
+}
+
+.smile-login-input input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 49px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #203943;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.smile-login-input input::placeholder {
+  color: #9ba9af;
+}
+
+.smile-password-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border: none;
+  background: transparent;
+  color: #84959e;
+  cursor: pointer;
+}
+
+.smile-password-toggle:hover {
+  color: #16858a;
+}
+
+/* LOGIN BUTTON */
+
+.smile-login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 51px;
+  margin-top: 4px;
+  padding: 14px;
+  background: #16858a;
+  border: none;
+  border-radius: 9px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.smile-login-button:hover:not(:disabled) {
+  background: #106d72;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(22, 133, 138, 0.2);
+}
+
+.smile-login-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.smile-login-button:focus-visible,
+.smile-password-toggle:focus-visible {
+  outline: 2px solid #16858a;
+  outline-offset: 3px;
+}
+
+/* HELP AND SECURITY */
+
+.smile-login-help {
+  margin: 22px 0 30px;
+  color: #84959e;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.smile-login-security {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 23px;
+  border-top: 1px solid #e8eff2;
+  color: #84959e;
+  font-size: 12px;
+}
+
+.smile-login-security svg {
+  color: #16858a;
+}
+
+/* LOADING ANIMATION */
+
+.smile-login-spinner {
+  animation: smile-login-spin 1s linear infinite;
+}
+
+@keyframes smile-login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* TABLET RESPONSIVENESS */
+
+@media (max-width: 1000px) {
+  .smile-login-page {
+    padding: 16px;
+  }
+
+  .smile-login-branding {
+    min-height: calc(100vh - 32px);
+    padding: 30px;
+  }
+
+  .smile-login-content {
+    padding: 30px;
+  }
+}
+
+/* MOBILE RESPONSIVENESS */
+
+@media (max-width: 768px) {
+  .smile-login-page {
+    grid-template-columns: 1fr;
+    padding: 15px;
+  }
+
+  .smile-login-branding {
+    min-height: auto;
+    padding: 24px;
+    gap: 25px;
+    border-radius: 15px;
+  }
+
+  .smile-login-hero {
+    display: none;
+  }
+
+  .smile-login-tagline h2 {
+    font-size: 23px;
+  }
+
+  .smile-login-tagline-label {
+    display: none;
+  }
+
+  .smile-login-tagline p {
+    font-size: 12px;
+  }
+
+  .smile-login-content {
+    padding: 40px 20px;
+  }
+
+  .smile-login-heading h2 {
+    font-size: 29px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smile-login-page * {
+    animation: none;
+    transition: none;
+  }
+}

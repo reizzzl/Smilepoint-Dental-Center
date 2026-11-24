@@ -1,0 +1,424 @@
+/* ==========================================
+   SMILEPOINT STAFF MANAGEMENT
+========================================== */
+
+.staff-management-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.staff-management-page * {
+  box-sizing: border-box;
+}
+
+/* ==========================================
+   FILTERS
+========================================== */
+
+.sm-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 24px;
+  margin-bottom: 26px;
+}
+
+.sm-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sm-form-group label {
+  color: #344d56;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ==========================================
+   CUSTOM DROPDOWN
+========================================== */
+
+.sm-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.sm-select-wrapper select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 44px 12px 15px;
+
+  background: #f8fafb;
+  border: 1px solid #dce6eb;
+  border-radius: 9px;
+
+  color: #344d56;
+  font-family: inherit;
+  font-size: 14px;
+
+  outline: none;
+  cursor: pointer;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.sm-select-wrapper select:hover {
+  border-color: #9dc6c9;
+  background: #ffffff;
+}
+
+.sm-select-wrapper select:focus {
+  background: #ffffff;
+  border-color: #16858a;
+  box-shadow: 0 0 0 3px rgba(22, 133, 138, 0.1);
+}
+
+.sm-select-wrapper select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sm-select-wrapper > svg {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+
+  transform: translateY(-50%);
+
+  color: #78909c;
+  pointer-events: none;
+}
+
+.sm-select-wrapper select option {
+  background: #ffffff;
+  color: #203943;
+}
+
+/* ==========================================
+   TABLE ACTIONS
+========================================== */
+
+.sm-table-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sm-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 10px 13px;
+
+  background: #edf2f8;
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  color: #3974b8;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.sm-edit-btn:hover {
+  background: #e1eaf7;
+  border-color: #cbdcf0;
+}
+
+.sm-edit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   ACCOUNT STATUS
+========================================== */
+
+.sm-status-active,
+.sm-status-inactive {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 8px 13px;
+  border-radius: 30px;
+
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sm-status-active {
+  background: #e3f5eb;
+  color: #25805a;
+}
+
+.sm-status-inactive {
+  background: #fceaea;
+  color: #b64c4c;
+}
+
+.sm-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ==========================================
+   CURRENT USER LABEL
+========================================== */
+
+.sm-you-label {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 8px;
+  margin-left: 8px;
+
+  background: #edf4f5;
+  border-radius: 5px;
+
+  color: #78909c;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ==========================================
+   TABLE FOOTER
+========================================== */
+
+.sm-table-footer {
+  padding-top: 20px;
+  margin-top: 12px;
+
+  border-top: 1px solid #e5edef;
+
+  color: #82939c;
+  font-size: 13px;
+}
+
+/* ==========================================
+   STAFF PROFILE
+========================================== */
+
+.sm-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  padding: 18px;
+  margin-bottom: 24px;
+
+  background: #f0f7f7;
+  border: 1px solid #dcebec;
+  border-radius: 10px;
+}
+
+.sm-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 55px;
+  height: 55px;
+  flex-shrink: 0;
+
+  background: #d7eeeb;
+  border-radius: 50%;
+
+  color: #106d72;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.sm-profile > div:last-child {
+  min-width: 0;
+}
+
+.sm-profile h3 {
+  margin: 0 0 6px;
+
+  color: #203943;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sm-profile p {
+  margin: 0;
+
+  color: #78909c;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sm-role-label {
+  display: inline-flex;
+
+  padding: 5px 9px;
+  margin-top: 8px;
+
+  background: #dcefed;
+  border-radius: 5px;
+
+  color: #106d72;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* ==========================================
+   EDIT STATUS MODAL
+========================================== */
+
+.sm-edit-modal {
+  width: min(100%, 520px);
+}
+
+.sm-status-field {
+  margin-top: 24px;
+}
+
+.sm-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+
+  padding: 15px;
+  margin-top: 22px;
+
+  background: #edf7f5;
+  border: 1px solid #d7ebe5;
+  border-radius: 8px;
+
+  color: #397967;
+}
+
+.sm-notice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.sm-notice p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.sm-notice-warning {
+  background: #fff7e8;
+  border-color: #f2e3c4;
+  color: #98702d;
+}
+
+.sm-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+
+  padding-top: 22px;
+  margin-top: 24px;
+
+  border-top: 1px solid #e5edef;
+}
+
+/* ==========================================
+   SUCCESS MESSAGE
+========================================== */
+
+.sm-success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 15px 18px;
+  margin-bottom: 22px;
+
+  background: #eaf7ef;
+  border: 1px solid #cfe8d8;
+  border-radius: 9px;
+
+  color: #32784c;
+  font-size: 14px;
+}
+
+.sm-success > svg {
+  flex-shrink: 0;
+}
+
+.sm-success span {
+  flex: 1;
+}
+
+.sm-success button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 5px;
+
+  background: transparent;
+  border: none;
+
+  color: #32784c;
+  cursor: pointer;
+}
+
+/* ==========================================
+   RESPONSIVE DESIGN
+========================================== */
+
+@media (max-width: 768px) {
+  .sm-filter-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .sm-table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sm-modal-footer {
+    flex-direction: column-reverse;
+  }
+
+  .sm-modal-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .sm-profile {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .sm-avatar {
+    width: 45px;
+    height: 45px;
+    font-size: 19px;
+  }
+
+  .sm-profile h3 {
+    font-size: 15px;
+  }
+}

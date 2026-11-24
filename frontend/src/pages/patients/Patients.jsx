@@ -1,244 +1,635 @@
+
 import { useEffect, useState } from "react";
-import { Search, UserRound, Plus, Eye, X } from "lucide-react";
+import {
+  Search,
+  UserRound,
+  Plus,
+  Eye,
+  X,
+  Pencil,
+  RefreshCw,
+} from "lucide-react";
+
 import "../shared.css";
 
 import {
   getPatients,
   createPatient,
   updatePatient,
+  getCurrentStaff,
 } from "../../services/patientsApi";
+
+const emptyForm = {
+  first_name: "",
+  middle_name: "",
+  last_name: "",
+  date_of_birth: "",
+  sex: "",
+  phone_number: "",
+  email: "",
+  address: "",
+  emergency_contact_name: "",
+  emergency_contact_phone: "",
+};
+
+function getAge(dob) {
+  if (!dob) return "—";
+
+  const [year, month, day] = dob.split("-").map(Number);
+  const today = new Date();
+
+  let age = today.getFullYear() - year;
+
+  if (
+    today.getMonth() + 1 < month ||
+    (today.getMonth() + 1 === month &&
+      today.getDate() < day)
+  ) {
+    age--;
+  }
+
+  return age >= 0 ? age : "—";
+}
+
+function formatPatient(patient) {
+  return {
+    ...patient,
+
+    id: patient.patient_id || patient.id,
+
+    name: [
+      patient.first_name,
+      patient.middle_name,
+      patient.last_name,
+    ]
+      .filter(Boolean)
+      .join(" "),
+
+    age: getAge(patient.date_of_birth),
+
+    gender: patient.sex || "—",
+
+    contact: patient.phone_number || "—",
+  };
+}
+
+function getToday() {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 export default function Patients() {
   const [patients, setPatients] = useState([]);
+  const [staff, setStaff] = useState(null);
+
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
+
   const [showForm, setShowForm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
-const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({ ...emptyForm });
 
-const [editForm, setEditForm] = useState({
-  name: "",
-  dob: "",
-  gender: "",
-  contact: "",
-});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-const [loading, setLoading] = useState(true);
-const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [success, setSuccess] = useState("");
 
-useEffect(() => {
-  let active = true;
+  const [refresh, setRefresh] = useState(0);
 
-  async function loadPatients() {
-    try {
-      const data = await getPatients();
+  const canManage =
+    staff?.role === "receptionist" &&
+    staff?.active === true;
 
-      if (!active) return;
+  // ==========================================
+  // LOAD PATIENTS AND STAFF ACCOUNT
+  // ==========================================
 
-      const today = new Date();
+  useEffect(() => {
+    let active = true;
 
-      const formatted = data.map((patient) => {
-        const birth = patient.date_of_birth
-          ?.split("-")
-          .map(Number);
-
-        const age = birth
-          ? today.getFullYear() - birth[0] -
-            (today.getMonth() + 1 < birth[1] ||
-            (today.getMonth() + 1 === birth[1] &&
-              today.getDate() < birth[2]) ? 1 : 0)
-          : "";
-
-        return {
-          ...patient,
-          id: patient.id,
-          name: patient.full_name,
-          age,
-          gender: patient.sex ?? "",
-          contact: patient.phone ?? "",
-        };
-      });
-
-      setPatients(formatted);
+    async function loadData() {
+      setLoading(true);
       setLoadError("");
-    } catch (error) {
-      if (active) setLoadError(error.message);
-    } finally {
-      if (active) setLoading(false);
+
+      try {
+        const currentStaff = await getCurrentStaff();
+
+        if (!active) return;
+
+        setStaff(currentStaff);
+
+        const data = await getPatients();
+
+        if (!active) return;
+
+        setPatients(data.map(formatPatient));
+      } catch (error) {
+        if (active) {
+          setLoadError(error.message);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
     }
-  }
 
-  loadPatients();
+    loadData();
 
-  return () => {
-    active = false;
-  };
-}, []);
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
 
-  const emptyForm = {
-    name: "",
-    dob: "",
-    gender: "",
-    contact: "",
-  };
-
-  const [form, setForm] = useState(emptyForm);
+  // ==========================================
+  // SEARCH PATIENTS
+  // ==========================================
 
   const filtered = patients.filter((patient) =>
-    `${patient.id} ${patient.name}`
+    [
+      patient.id,
+      patient.name,
+      patient.phone_number,
+      patient.email,
+    ]
+      .filter(Boolean)
+      .join(" ")
       .toLowerCase()
-      .includes(search.toLowerCase())
+      .includes(search.trim().toLowerCase())
   );
 
+  // ==========================================
+  // OPEN ADD PATIENT FORM
+  // ==========================================
 
-async function addPatient(e) {
-  e.preventDefault();
+  function openAddForm() {
+    if (!canManage) return;
 
-  try {
-    const saved = await createPatient({
-      full_name: form.name.trim(),
-      date_of_birth: form.dob,
-      sex: form.gender,
-      phone: form.contact.trim(),
-    });
-
-    const [year, month, day] = form.dob.split("-").map(Number);
-    const today = new Date();
-
-    const age =
-      today.getFullYear() -
-      year -
-      (today.getMonth() + 1 < month ||
-      (today.getMonth() + 1 === month &&
-        today.getDate() < day)
-        ? 1
-        : 0);
-
-    setPatients((current) => [
-      {
-        ...saved,
-        id: saved.id,
-        name: saved.full_name,
-        age,
-        gender: saved.sex ?? "",
-        contact: saved.phone ?? "",
-      },
-      ...current,
-    ]);
-
-    setForm(emptyForm);
-    setShowForm(false);
-    alert("Patient registered successfully!");
-  } catch (error) {
-    alert(`Patient registration failed: ${error.message}`);
+    setSelected(null);
+    setForm({ ...emptyForm });
+    setFormError("");
+    setSuccess("");
+    setIsEditing(false);
+    setShowForm(true);
   }
-}
 
-function startEditing() {
+  // ==========================================
+  // VIEW PATIENT
+  // ==========================================
 
-async function saveEditedPatient(e) {
-  e.preventDefault();
+  function viewPatient(patient) {
+    setSelected(patient);
+    setShowForm(false);
+    setIsEditing(false);
+    setFormError("");
+  }
 
-  if (!selected) return;
+  // ==========================================
+  // EDIT PATIENT
+  // ==========================================
 
-  try {
-    const updated = await updatePatient(selected.id, {
-      full_name: editForm.name.trim(),
-      date_of_birth: editForm.dob,
-      sex: editForm.gender,
-      phone: editForm.contact.trim(),
+  function startEditing() {
+    if (!selected || !canManage) return;
+
+    setForm({
+      first_name: selected.first_name || "",
+      middle_name: selected.middle_name || "",
+      last_name: selected.last_name || "",
+      date_of_birth: selected.date_of_birth || "",
+      sex: selected.sex || "",
+      phone_number: selected.phone_number || "",
+      email: selected.email || "",
+      address: selected.address || "",
+      emergency_contact_name:
+        selected.emergency_contact_name || "",
+      emergency_contact_phone:
+        selected.emergency_contact_phone || "",
     });
 
-    const [year, month, day] = editForm.dob
-      .split("-")
-      .map(Number);
+    setFormError("");
+    setSuccess("");
+    setIsEditing(true);
+  }
 
-    const today = new Date();
-    const age =
-      today.getFullYear() -
-      year -
-      (today.getMonth() + 1 < month ||
-      (today.getMonth() + 1 === month &&
-        today.getDate() < day)
-        ? 1
-        : 0);
+  // ==========================================
+  // FORM INPUT HANDLER
+  // ==========================================
 
-    const patient = {
-      ...updated,
-      name: updated.full_name,
-      age,
-      gender: updated.sex ?? "",
-      contact: updated.phone ?? "",
+  function handleChange(e) {
+    const { name, value } = e.target;
+
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
+
+  // ==========================================
+  // SAVE PATIENT
+  // ==========================================
+
+  async function savePatient(e) {
+    e.preventDefault();
+
+    if (!canManage || saving) return;
+
+    setFormError("");
+    setSuccess("");
+
+    if (!form.first_name.trim()) {
+      setFormError("First name is required.");
+      return;
+    }
+
+    if (!form.last_name.trim()) {
+      setFormError("Last name is required.");
+      return;
+    }
+
+    if (
+      form.date_of_birth &&
+      form.date_of_birth > getToday()
+    ) {
+      setFormError(
+        "Date of birth cannot be in the future."
+      );
+      return;
+    }
+
+    const payload = {
+      first_name: form.first_name.trim(),
+      middle_name: form.middle_name.trim() || null,
+      last_name: form.last_name.trim(),
+      date_of_birth: form.date_of_birth || null,
+      sex: form.sex || null,
+      phone_number: form.phone_number.trim() || null,
+      email: form.email.trim() || null,
+      address: form.address.trim() || null,
+
+      emergency_contact_name:
+        form.emergency_contact_name.trim() || null,
+
+      emergency_contact_phone:
+        form.emergency_contact_phone.trim() || null,
     };
 
-    setPatients((current) =>
-      current.map((item) =>
-        item.id === selected.id ? patient : item
+    // Omit empty optional fields during registration.
+    const createPayload = Object.fromEntries(
+      Object.entries(payload).filter(
+        ([, value]) => value !== null
       )
     );
 
-    setSelected(patient);
-    setIsEditing(false);
+    setSaving(true);
 
-    alert("Patient updated successfully!");
-  } catch (error) {
-    alert(`Unable to update patient: ${error.message}`);
+    try {
+      if (isEditing && selected) {
+        const updated = await updatePatient(
+          selected.id,
+          payload
+        );
+
+        const formatted = formatPatient(updated);
+
+        setPatients((current) =>
+          current.map((patient) =>
+            patient.id === formatted.id
+              ? formatted
+              : patient
+          )
+        );
+
+        setSelected(formatted);
+        setIsEditing(false);
+
+        setSuccess("Patient updated successfully.");
+      } else {
+        const saved = await createPatient(createPayload);
+
+        const formatted = formatPatient(saved);
+
+        setPatients((current) => [
+          formatted,
+          ...current.filter(
+            (patient) => patient.id !== formatted.id
+          ),
+        ]);
+
+        setShowForm(false);
+        setForm({ ...emptyForm });
+
+        setSuccess("Patient registered successfully.");
+      }
+
+      setRefresh((current) => current + 1);
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setSaving(false);
+    }
   }
-}
 
-  setEditForm({
-    name: selected.name ?? "",
-    dob: selected.date_of_birth?.slice(0, 10) ?? "",
-    gender: selected.gender ?? "",
-    contact: selected.contact ?? "",
-  });
-
-  setIsEditing(true);
-}
+  // ==========================================
+  // CLOSE MODAL
+  // ==========================================
 
   function closeModal() {
+    if (saving) return;
+
     setSelected(null);
     setShowForm(false);
-      setIsEditing(false);
+    setIsEditing(false);
+    setFormError("");
+    setForm({ ...emptyForm });
   }
+
+  // ==========================================
+  // PATIENT FORM
+  // ==========================================
+
+  function renderForm() {
+    return (
+      <form className="sp-form" onSubmit={savePatient}>
+        {formError && (
+          <div className="sp-error" role="alert">
+            {formError}
+          </div>
+        )}
+
+        <div className="sp-form-grid">
+          <div className="sp-form-group">
+            <label htmlFor="first_name">
+              First Name *
+            </label>
+
+            <input
+              id="first_name"
+              name="first_name"
+              required
+              maxLength={160}
+              value={form.first_name}
+              onChange={handleChange}
+              placeholder="Enter first name"
+            />
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="last_name">
+              Last Name *
+            </label>
+
+            <input
+              id="last_name"
+              name="last_name"
+              required
+              maxLength={160}
+              value={form.last_name}
+              onChange={handleChange}
+              placeholder="Enter last name"
+            />
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="middle_name">
+              Middle Name
+            </label>
+
+            <input
+              id="middle_name"
+              name="middle_name"
+              maxLength={160}
+              value={form.middle_name}
+              onChange={handleChange}
+              placeholder="Enter middle name"
+            />
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="date_of_birth">
+              Date of Birth
+            </label>
+
+            <input
+              id="date_of_birth"
+              type="date"
+              name="date_of_birth"
+              max={getToday()}
+              value={form.date_of_birth}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="sex">Gender</label>
+
+            <select
+              id="sex"
+              name="sex"
+              value={form.sex}
+              onChange={handleChange}
+            >
+              <option value="">Select gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="phone_number">
+              Contact Number
+            </label>
+
+            <input
+              id="phone_number"
+              type="tel"
+              name="phone_number"
+              maxLength={50}
+              value={form.phone_number}
+              onChange={handleChange}
+              placeholder="Enter contact number"
+            />
+          </div>
+
+          <div className="sp-form-group sp-form-group-full">
+            <label htmlFor="email">
+              Email Address
+            </label>
+
+            <input
+              id="email"
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="Enter email address"
+            />
+          </div>
+
+          <div className="sp-form-group sp-form-group-full">
+            <label htmlFor="address">Address</label>
+
+            <textarea
+              id="address"
+              name="address"
+              rows={3}
+              maxLength={500}
+              value={form.address}
+              onChange={handleChange}
+              placeholder="Enter complete address"
+            />
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="emergency_contact_name">
+              Emergency Contact Name
+            </label>
+
+            <input
+              id="emergency_contact_name"
+              name="emergency_contact_name"
+              maxLength={160}
+              value={form.emergency_contact_name}
+              onChange={handleChange}
+              placeholder="Enter contact name"
+            />
+          </div>
+
+          <div className="sp-form-group">
+            <label htmlFor="emergency_contact_phone">
+              Emergency Contact Number
+            </label>
+
+            <input
+              id="emergency_contact_phone"
+              type="tel"
+              name="emergency_contact_phone"
+              maxLength={50}
+              value={form.emergency_contact_phone}
+              onChange={handleChange}
+              placeholder="Enter contact number"
+            />
+          </div>
+        </div>
+
+        <div className="sp-modal-footer">
+          <button
+            type="button"
+            className="sp-secondary-btn"
+            disabled={saving}
+            onClick={() => {
+              if (isEditing) {
+                setIsEditing(false);
+                setFormError("");
+              } else {
+                closeModal();
+              }
+            }}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="sp-primary-btn"
+            disabled={saving}
+          >
+            {saving
+              ? "Saving..."
+              : isEditing
+              ? "Save Changes"
+              : "Save Patient"}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  // ==========================================
+  // MAIN PATIENT MANAGEMENT INTERFACE
+  // ==========================================
 
   return (
     <div className="sp-page">
       <div className="sp-page-header">
         <div>
           <h1>Patient Management</h1>
-          <p>Manage patient information and registration.</p>
+
+          <p>
+            Manage patient information and registration.
+          </p>
         </div>
 
-        <button
-          className="sp-primary-btn"
-          onClick={() => setShowForm(true)}
-        >
-          <Plus size={17} />
-          Add Patient
-        </button>
-      </div>
+        <div className="sp-toolbar">
+          <button
+            type="button"
+            className="sp-secondary-btn"
+            disabled={loading}
+            onClick={() =>
+              setRefresh((current) => current + 1)
+            }
+          >
+            <RefreshCw size={17} />
+            Refresh
+          </button>
 
-      
-{loading && (
-  <p role="status">
-    Loading patient records...
-  </p>
-)}
-
-{loadError && (
-  <div className="sp-error" role="alert">
-    Unable to load patients: {loadError}
-  </div>
-)}
-
-      <div className="sp-stat-card">
-        <UserRound size={26} />
-        <div>
-          <span>Total Patients</span>
-          <h2>{patients.length}</h2>
+          {canManage && (
+            <button
+              type="button"
+              className="sp-primary-btn"
+              onClick={openAddForm}
+            >
+              <Plus size={17} />
+              Add Patient
+            </button>
+          )}
         </div>
       </div>
+
+      {success && (
+        <div className="sp-success" role="status">
+          {success}
+        </div>
+      )}
+
+      {loadError && (
+        <div className="sp-error" role="alert">
+          Unable to load patients: {loadError}
+        </div>
+      )}
+
+      {staff && !canManage && (
+        <p className="sp-muted">
+          View-only access — patient registration and
+          editing are available to receptionists.
+        </p>
+      )}
+
+      {/* PATIENT STATISTICS */}
+
+      <div className="sp-stats-grid">
+        <div className="sp-stat-card">
+          <UserRound size={26} />
+
+          <div>
+            <span>Total Patients</span>
+            <h2>
+              {loading || loadError
+                ? "—"
+                : patients.length}
+            </h2>
+          </div>
+        </div>
+      </div>
+
+      {/* PATIENT LIST */}
 
       <div className="sp-panel">
         <div className="sp-panel-top">
@@ -246,11 +637,15 @@ async function saveEditedPatient(e) {
 
           <div className="sp-search">
             <Search size={17} />
+
             <input
               type="text"
               placeholder="Search patients..."
+              aria-label="Search patients"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
             />
           </div>
         </div>
@@ -269,18 +664,40 @@ async function saveEditedPatient(e) {
             </thead>
 
             <tbody>
-              {filtered.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="sp-empty">
+                    Loading patient records...
+                  </td>
+                </tr>
+              ) : loadError ? (
+                <tr>
+                  <td colSpan={6} className="sp-empty">
+                    Unable to retrieve patient records.
+                  </td>
+                </tr>
+              ) : filtered.length > 0 ? (
                 filtered.map((patient) => (
                   <tr key={patient.id}>
-                    <td>{patient.id.slice(0, 8)}</td>
+                    <td title={patient.id}>
+                      {patient.id?.slice(0, 8)}
+                    </td>
+
                     <td>{patient.name}</td>
+
                     <td>{patient.age}</td>
+
                     <td>{patient.gender}</td>
+
                     <td>{patient.contact}</td>
+
                     <td>
                       <button
+                        type="button"
                         className="sp-action-btn"
-                        onClick={() => setSelected(patient)}
+                        onClick={() =>
+                          viewPatient(patient)
+                        }
                       >
                         <Eye size={16} />
                         View
@@ -290,8 +707,10 @@ async function saveEditedPatient(e) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="sp-empty">
-                    No patient records found.
+                  <td colSpan={6} className="sp-empty">
+                    {search
+                      ? "No matching patients found."
+                      : "No patient records found."}
                   </td>
                 </tr>
               )}
@@ -300,152 +719,117 @@ async function saveEditedPatient(e) {
         </div>
       </div>
 
+      {/* PATIENT MODAL */}
+
       {(showForm || selected) && (
         <div className="sp-overlay">
-          <div className="sp-modal">
+          <div
+            className="sp-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="patient-modal-title"
+            style={{
+              maxWidth: "720px",
+              width: "95%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
             <div className="sp-modal-header">
-              <h2>
-                {selected ? "Patient Details" : "Add New Patient"}
+              <h2 id="patient-modal-title">
+                {isEditing
+                  ? "Edit Patient"
+                  : selected
+                  ? "Patient Details"
+                  : "Add New Patient"}
               </h2>
 
               <button
+                type="button"
                 className="sp-icon-btn"
                 onClick={closeModal}
+                disabled={saving}
+                aria-label="Close patient details"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {selected ? (
-              
-<div className="sp-details">
-  {isEditing ? (
-    <form className="sp-form" onSubmit={saveEditedPatient}>
-      <label>Full Name</label>
-      <input
-        required
-        value={editForm.name}
-        onChange={(e) =>
-          setEditForm({ ...editForm, name: e.target.value })
-        }
-      />
-
-      <label>Date of Birth</label>
-      <input
-        type="date"
-        required
-        value={editForm.dob}
-        onChange={(e) =>
-          setEditForm({ ...editForm, dob: e.target.value })
-        }
-      />
-
-      <label>Gender</label>
-      <select
-        required
-        value={editForm.gender}
-        onChange={(e) =>
-          setEditForm({ ...editForm, gender: e.target.value })
-        }
-      >
-        <option value="">Select Gender</option>
-        <option value="Female">Female</option>
-        <option value="Male">Male</option>
-        <option value="Other">Other</option>
-      </select>
-
-      <label>Contact Number</label>
-      <input
-        required
-        value={editForm.contact}
-        onChange={(e) =>
-          setEditForm({ ...editForm, contact: e.target.value })
-        }
-      />
-
-      <button type="submit" className="sp-primary-btn">
-        Save Changes
-      </button>
-
-      <button
-        type="button"
-        className="sp-action-btn"
-        onClick={() => setIsEditing(false)}
-      >
-        Cancel Editing
-      </button>
-    </form>
-  ) : (
-    <>
-      <p><strong>Patient ID:</strong> {selected.id}</p>
-      <p><strong>Name:</strong> {selected.name}</p>
-      <p><strong>Age:</strong> {selected.age}</p>
-      <p><strong>Gender:</strong> {selected.gender}</p>
-      <p><strong>Contact:</strong> {selected.contact}</p>
-
-      <button
-        type="button"
-        className="sp-primary-btn"
-        onClick={startEditing}
-      >
-        Edit Patient
-      </button>
-    </>
-  )}
-</div>
-
+            {showForm || isEditing ? (
+              renderForm()
             ) : (
-              <form className="sp-form" onSubmit={addPatient}>
-                <label>Full Name</label>
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm({ ...form, name: e.target.value })
-                  }
-                  placeholder="Enter full name"
-                />
+              <div className="sp-details">
+                <p>
+                  <strong>Patient ID:</strong>{" "}
+                  {selected.id}
+                </p>
 
-                
-<label>Date of Birth</label>
-<input
-  type="date"
-  required
-  value={form.dob}
-  onChange={(e) =>
-    setForm({ ...form, dob: e.target.value })
-  }
-/>
+                <p>
+                  <strong>Full Name:</strong>{" "}
+                  {selected.name}
+                </p>
 
+                <p>
+                  <strong>Date of Birth:</strong>{" "}
+                  {selected.date_of_birth || "—"}
+                </p>
 
-                <label>Gender</label>
-                <select
-                  required
-                  value={form.gender}
-                  onChange={(e) =>
-                    setForm({ ...form, gender: e.target.value })
-                  }
-                >
-                  <option value="">Select Gender</option>
-                  <option value="Female">Female</option>
-                  <option value="Male">Male</option>
-                  <option value="Other">Other</option>
-                </select>
+                <p>
+                  <strong>Age:</strong>{" "}
+                  {selected.age}
+                </p>
 
-                <label>Contact Number</label>
-                <input
-                  required
-                  value={form.contact}
-                  onChange={(e) =>
-                    setForm({ ...form, contact: e.target.value })
-                  }
-                  placeholder="Enter contact number"
-                />
+                <p>
+                  <strong>Gender:</strong>{" "}
+                  {selected.gender}
+                </p>
 
-                <button type="submit" className="sp-primary-btn">
-                  Save Patient
-                </button>
-              </form>
+                <p>
+                  <strong>Contact Number:</strong>{" "}
+                  {selected.contact}
+                </p>
+
+                <p>
+                  <strong>Email:</strong>{" "}
+                  {selected.email || "—"}
+                </p>
+
+                <p>
+                  <strong>Address:</strong>{" "}
+                  {selected.address || "—"}
+                </p>
+
+                <p>
+                  <strong>Emergency Contact:</strong>{" "}
+                  {selected.emergency_contact_name || "—"}
+                </p>
+
+                <p>
+                  <strong>Emergency Contact Number:</strong>{" "}
+                  {selected.emergency_contact_phone || "—"}
+                </p>
+
+                <div className="sp-modal-footer">
+                  <button
+                    type="button"
+                    className="sp-secondary-btn"
+                    onClick={closeModal}
+                  >
+                    Close
+                  </button>
+
+                  {canManage && (
+                    <button
+                      type="button"
+                      className="sp-primary-btn"
+                      onClick={startEditing}
+                    >
+                      <Pencil size={16} />
+                      Edit Patient
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -453,3 +837,4 @@ async function saveEditedPatient(e) {
     </div>
   );
 }
+2

@@ -1,0 +1,306 @@
+/* ==========================================
+   SMILEPOINT ACCOUNT MANAGEMENT
+========================================== */
+
+.account-page {
+  width: 100%;
+  min-width: 0;
+  color: #203943;
+}
+
+.account-page * {
+  box-sizing: border-box;
+}
+
+/* PROFILE BANNER */
+
+.am-profile-banner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 30px;
+  margin-bottom: 24px;
+  background: linear-gradient(
+    120deg,
+    #ffffff,
+    #e9f6f5
+  );
+  border: 1px solid #dce7eb;
+  border-radius: 12px;
+}
+
+.am-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  background: #d5eeeb;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  color: #106d72;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.am-profile-heading {
+  min-width: 0;
+}
+
+.am-profile-heading h2 {
+  margin: 0 0 7px;
+  color: #203943;
+  font-size: 23px;
+}
+
+.am-profile-heading p {
+  margin: 0 0 13px;
+  color: #78909c;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.am-profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.am-role-badge,
+.am-active-badge,
+.am-inactive-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.am-role-badge {
+  background: #dcefed;
+  color: #106d72;
+}
+
+.am-active-badge {
+  background: #e4f5e9;
+  color: #32784c;
+}
+
+.am-inactive-badge {
+  background: #fce9e9;
+  color: #a94444;
+}
+
+/* ACCOUNT LAYOUT */
+
+.am-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 24px;
+}
+
+.am-card {
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #dce7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.am-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 22px;
+  background: #edf6f6;
+  border-bottom: 1px solid #dce7eb;
+  color: #106d72;
+}
+
+.am-card-header svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.am-card-header h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.am-card-header p {
+  margin: 0;
+  color: #78909c;
+  font-size: 12px;
+}
+
+.am-card-body {
+  padding: 24px;
+}
+
+/* PERSONAL INFORMATION */
+
+.am-info-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 17px 0;
+  border-bottom: 1px solid #e6edef;
+}
+
+.am-info-field:first-child {
+  padding-top: 0;
+}
+
+.am-info-field svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: #16858a;
+}
+
+.am-info-field > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.am-info-field label {
+  color: #78909c;
+  font-size: 12px;
+}
+
+.am-info-field strong {
+  color: #203943;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.am-notice {
+  padding: 15px;
+  margin-top: 22px;
+  background: #f0f7f8;
+  border: 1px solid #dce7eb;
+  border-radius: 8px;
+  color: #607e89;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* PASSWORD FORM */
+
+.am-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.am-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.am-form-group label {
+  color: #344d56;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.am-form-group input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #d4e1e5;
+  border-radius: 8px;
+  outline: none;
+  color: #203943;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.am-form-group input:focus {
+  border-color: #16858a;
+  box-shadow: 0 0 0 3px rgba(22, 133, 138, 0.08);
+}
+
+.am-form-group input::placeholder {
+  color: #94a5ae;
+}
+
+.am-form-group small {
+  color: #78909c;
+  font-size: 11px;
+}
+
+.am-password-input {
+  position: relative;
+}
+
+.am-password-input input {
+  padding-right: 48px;
+}
+
+.am-password-input button {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #78909c;
+  cursor: pointer;
+}
+
+.am-password-input button:hover {
+  color: #16858a;
+}
+
+.am-password-form .sp-primary-btn {
+  justify-content: center;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 4px;
+}
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 1000px) {
+  .am-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .am-profile-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+    gap: 15px;
+  }
+
+  .am-avatar {
+    width: 70px;
+    height: 70px;
+    font-size: 24px;
+  }
+
+  .am-profile-heading h2 {
+    font-size: 20px;
+  }
+
+  .am-card-header,
+  .am-card-body {
+    padding: 17px;
+  }
+}

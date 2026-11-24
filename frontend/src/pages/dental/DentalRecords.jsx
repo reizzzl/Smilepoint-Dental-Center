@@ -1,301 +1,1271 @@
 
 import { useEffect, useState } from "react";
+
 import {
   Search,
   RefreshCw,
-  ClipboardList,
-  Eye,
-  X,
-  CalendarDays,
+  Printer,
   UserRound,
+  ClipboardList,
   Stethoscope,
+  Image,
+  Plus,
+  X,
 } from "lucide-react";
+
 import { supabase } from "../../lib/supabase";
+
+import {
+  getPatients,
+  getCurrentStaff,
+} from "../../services/patientsApi";
+
+import DentalExamination from "./DentalExamination";
+import ClinicalRecordForm from "./ClinicalRecordForm";
+
 import "./DentalRecords.css";
 
-const formatDate = (date) => {
-  if (!date) return "—";
-  const parsed = new Date(date);
-  return Number.isNaN(parsed.getTime())
-    ? "—"
-    : parsed.toLocaleDateString("en-PH");
-};
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
 
-const formatMoney = (value) =>
-  new Intl.NumberFormat("en-PH", {
+function formatDate(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-PH");
+}
+
+function formatMoney(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
-  }).format(Number(value || 0));
+  }).format(Number(value));
+}
 
-export default function DentalRecords() {
-  const [patients, setPatients] = useState([]);
-  const [treatments, setTreatments] = useState([]);
-  const [search, setSearch] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [loading, setLoading] = useState(true);
+function getFullName(patient) {
+  if (!patient) return "—";
+
+  return (
+    [
+      patient.first_name,
+      patient.middle_name,
+      patient.last_name,
+    ]
+      .filter(Boolean)
+      .join(" ") ||
+    patient.full_name ||
+    "—"
+  );
+}
+
+function getAge(dob) {
+  if (!dob) return "—";
+
+  const birth = new Date(dob);
+  const today = new Date();
+
+  let age = today.getFullYear() - birth.getFullYear();
+
+  if (
+    today.getMonth() < birth.getMonth() ||
+    (
+      today.getMonth() === birth.getMonth() &&
+      today.getDate() < birth.getDate()
+    )
+  ) {
+    age--;
+  }
+
+  return Number.isFinite(age) && age >= 0
+    ? age
+    : "—";
+}
+
+function displayValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "—";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (Array.isArray(value)) {
+    return value.length
+      ? value.map(displayValue).join(", ")
+      : "—";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+// ==========================================
+// REUSABLE COMPONENTS
+// ==========================================
+
+function InfoField({ label, value }) {
+  return (
+    <div className="dc-info-field">
+      <span>{label}</span>
+      <strong>{displayValue(value)}</strong>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  icon: Icon,
+  action,
+  children,
+}) {
+  return (
+    <section className="dc-section">
+      <div className="dc-section-heading">
+        {Icon && <Icon size={19} />}
+
+        <h2>{title}</h2>
+
+        {action && (
+          <div className="dc-section-actions">
+            {action}
+          </div>
+        )}
+      </div>
+
+      <div className="dc-section-body">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// ==========================================
+// PRIVATE X-RAY IMAGE
+// ==========================================
+
+function XrayPreview({ path }) {
+  const [url, setUrl] = useState("");
   const [error, setError] = useState("");
 
-  async function loadRecords() {
-    setLoading(true);
+  useEffect(() => {
+    let active = true;
+
+    setUrl("");
     setError("");
 
-    const [patientResult, treatmentResult] = await Promise.all([
-      supabase
-        .from("patient")
-        .select("id, full_name, sex, date_of_birth")
-        .order("full_name"),
+    if (!path) return;
 
-      supabase
-        .from("treatment_record")
-        .select("*")
-        .order("created_at", { ascending: false }),
-    ]);
+    async function loadImage() {
+      const { data, error } = await supabase.storage
+        .from("dental-xrays")
+        .createSignedUrl(path, 300);
 
-    if (patientResult.error || treatmentResult.error) {
-      setError(
-        patientResult.error?.message ||
-        treatmentResult.error?.message
+      if (!active) return;
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setUrl(data.signedUrl);
+      }
+    }
+
+    loadImage();
+
+    return () => {
+      active = false;
+    };
+  }, [path]);
+
+  if (!url) {
+    return (
+      <div className="dc-xray-placeholder">
+        <Image size={34} />
+        <span>
+          {error
+            ? "Unable to load image"
+            : path
+              ? "Loading X-ray..."
+              : "No image available"}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="dc-xray-image-link"
+    >
+      <img
+        src={url}
+        alt="Patient dental X-ray"
+        className="dc-xray-image"
+      />
+    </a>
+  );
+}
+
+// ==========================================
+// DATABASE RECORD RETRIEVAL
+// ==========================================
+
+async function readPatientRecords(table, patientId) {
+  const limit = 500;
+  let offset = 0;
+
+  const records = [];
+
+  const orderColumns = {
+    medical_history: "medical_history_id",
+    dental_chart: "chart_id",
+    treatment_record: "treatment_id",
+    xray_study: "xray_id",
+  };
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("*")
+      .eq("patient_id", patientId)
+      .order(orderColumns[table] || "patient_id")
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    records.push(...(data || []));
+
+    if (!data || data.length < limit) {
+      break;
+    }
+
+    offset += limit;
+  }
+
+  return records;
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
+export default function DentalRecords() {
+  const [staff, setStaff] = useState(null);
+  const [patients, setPatients] = useState([]);
+  const [search, setSearch] = useState("");
+
+  const [selectedPatient, setSelectedPatient] =
+    useState(null);
+
+  const [medicalHistory, setMedicalHistory] =
+    useState([]);
+
+  const [dentalChart, setDentalChart] =
+    useState([]);
+
+  const [treatments, setTreatments] =
+    useState([]);
+
+  const [xrays, setXrays] = useState([]);
+  const [services, setServices] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+
+  const [loadingRecords, setLoadingRecords] =
+    useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [sectionErrors, setSectionErrors] =
+    useState({});
+
+  const [refresh, setRefresh] = useState(0);
+  const [activeForm, setActiveForm] = useState(null);
+
+  // ==========================================
+  // ROLE-BASED ACCESS
+  // ==========================================
+
+  const canViewClinical =
+    staff?.active === true &&
+    ["admin", "dentist"].includes(staff?.role);
+
+  const canEditClinical =
+    staff?.active === true &&
+    staff?.role === "dentist";
+
+  const patientId =
+    selectedPatient?.patient_id ||
+    selectedPatient?.id;
+
+  const canAddRecord =
+    canEditClinical &&
+    Boolean(patientId) &&
+    !loading &&
+    !loadingRecords;
+
+  // ==========================================
+  // LOAD STAFF AND PATIENTS
+  // ==========================================
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadPatients() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const currentStaff = await getCurrentStaff();
+
+        if (!active) return;
+
+        setStaff(currentStaff);
+
+        if (
+          !currentStaff?.active ||
+          !["admin", "dentist"].includes(
+            currentStaff.role
+          )
+        ) {
+          setPatients([]);
+          setSelectedPatient(null);
+          return;
+        }
+
+        const data = await getPatients();
+
+        if (!active) return;
+
+        const patientList = Array.isArray(data)
+          ? data
+          : [];
+
+        setPatients(patientList);
+
+        setSelectedPatient((current) => {
+          if (!current) return null;
+
+          return (
+            patientList.find(
+              (patient) =>
+                (patient.patient_id || patient.id) ===
+                (current.patient_id || current.id)
+            ) || null
+          );
+        });
+      } catch (err) {
+        if (active) {
+          setError(err.message);
+          setStaff(null);
+          setPatients([]);
+          setSelectedPatient(null);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadPatients();
+
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
+
+  // ==========================================
+  // LOAD DENTAL SERVICES
+  // ==========================================
+
+  useEffect(() => {
+    let active = true;
+
+    if (!canViewClinical) return;
+
+    async function loadServices() {
+      const { data, error } = await supabase
+        .from("dental_service")
+        .select("service_id, name, base_price")
+        .order("name");
+
+      if (!active) return;
+
+      if (!error) {
+        setServices(data || []);
+      } else {
+        setServices([]);
+      }
+    }
+
+    loadServices();
+
+    return () => {
+      active = false;
+    };
+  }, [canViewClinical, refresh]);
+
+  // ==========================================
+  // PATIENT SEARCH
+  // ==========================================
+
+  const filteredPatients = patients.filter(
+    (patient) =>
+      [
+        patient.patient_id || patient.id,
+        getFullName(patient),
+        patient.phone_number || patient.phone,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(search.trim().toLowerCase())
+  );
+
+  // ==========================================
+  // LOAD CLINICAL RECORDS
+  // ==========================================
+
+  useEffect(() => {
+    let active = true;
+
+    setMedicalHistory([]);
+    setDentalChart([]);
+    setTreatments([]);
+    setXrays([]);
+    setSectionErrors({});
+
+    if (!patientId || !canViewClinical) {
+      setLoadingRecords(false);
+      return;
+    }
+
+    async function loadClinicalRecords() {
+      setLoadingRecords(true);
+
+      const requests = [
+        {
+          key: "medical",
+          table: "medical_history",
+          setter: setMedicalHistory,
+        },
+        {
+          key: "chart",
+          table: "dental_chart",
+          setter: setDentalChart,
+        },
+        {
+          key: "treatments",
+          table: "treatment_record",
+          setter: setTreatments,
+        },
+        {
+          key: "xrays",
+          table: "xray_study",
+          setter: setXrays,
+        },
+      ];
+
+      await Promise.all(
+        requests.map(async (request) => {
+          try {
+            const records = await readPatientRecords(
+              request.table,
+              patientId
+            );
+
+            if (active) {
+              request.setter(records);
+            }
+          } catch (err) {
+            if (active) {
+              setSectionErrors((current) => ({
+                ...current,
+                [request.key]: err.message,
+              }));
+            }
+          }
+        })
+      );
+
+      if (active) {
+        setLoadingRecords(false);
+      }
+    }
+
+    loadClinicalRecords();
+
+    return () => {
+      active = false;
+    };
+  }, [patientId, refresh, canViewClinical]);
+
+  // ==========================================
+  // PATIENT ACTIONS
+  // ==========================================
+
+  function resetClinicalRecords() {
+    setMedicalHistory([]);
+    setDentalChart([]);
+    setTreatments([]);
+    setXrays([]);
+    setSectionErrors({});
+    setActiveForm(null);
+    setSuccess("");
+  }
+
+  function selectPatient(patient) {
+    const nextId = patient.patient_id || patient.id;
+
+    if (nextId !== patientId) {
+      resetClinicalRecords();
+      setLoadingRecords(true);
+    }
+
+    setSelectedPatient(patient);
+    setSearch("");
+  }
+
+  function clearPatient() {
+    setSelectedPatient(null);
+    setSearch("");
+    resetClinicalRecords();
+  }
+
+  function refreshRecords() {
+    setRefresh((current) => current + 1);
+  }
+
+  function handleSaved() {
+    setActiveForm(null);
+    setSuccess("Clinical record saved successfully.");
+    refreshRecords();
+  }
+
+  function printChart() {
+    if (
+      !selectedPatient ||
+      loadingRecords ||
+      !canViewClinical
+    ) {
+      return;
+    }
+
+    window.print();
+  }
+
+  function openForm(type) {
+    if (!canAddRecord) return;
+
+    setSuccess("");
+    setActiveForm(type);
+  }
+
+  // ==========================================
+  // PREPARE RECORDS
+  // ==========================================
+
+  const history =
+    [...medicalHistory].sort(
+      (a, b) =>
+        String(b.recorded_at || "").localeCompare(
+          String(a.recorded_at || "")
+        )
+    )[0] || {};
+
+  const chart =
+    [...dentalChart].sort(
+      (a, b) =>
+        String(b.chart_date || "").localeCompare(
+          String(a.chart_date || "")
+        ) ||
+        String(b.created_at || "").localeCompare(
+          String(a.created_at || "")
+        )
+    )[0] || {};
+
+  const sortedTreatments = [...treatments].sort(
+    (a, b) =>
+      String(b.treatment_date || "").localeCompare(
+        String(a.treatment_date || "")
+      )
+  );
+
+  const sortedXrays = [...xrays].sort(
+    (a, b) =>
+      String(b.taken_at || "").localeCompare(
+        String(a.taken_at || "")
+      )
+  );
+
+  function getService(record) {
+    return services.find(
+      (service) =>
+        service.service_id === record.service_id
+    );
+  }
+
+  function sectionMessage(key, empty) {
+    if (!selectedPatient) {
+      return (
+        <p className="dc-empty">
+          Select a patient to view records.
+        </p>
       );
     }
 
-    setPatients(patientResult.data || []);
-    setTreatments(treatmentResult.data || []);
-    setLoading(false);
+    if (loadingRecords) {
+      return (
+        <p className="dc-empty">
+          Loading records...
+        </p>
+      );
+    }
+
+    if (sectionErrors[key]) {
+      return (
+        <div className="dc-error">
+          Unable to load records: {sectionErrors[key]}
+        </div>
+      );
+    }
+
+    if (empty) {
+      return (
+        <p className="dc-empty">
+          No accessible records available.
+        </p>
+      );
+    }
+
+    return null;
   }
 
-  useEffect(() => {
-    loadRecords();
-  }, []);
+  // ==========================================
+  // ACCESS CONTROL
+  // ==========================================
 
-  const filteredPatients = patients.filter((patient) =>
-    (patient.full_name || "")
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
-
-  const patientTreatments = (patientId) =>
-    treatments.filter(
-      (record) => record.patient_id === patientId
+  if (loading && !staff) {
+    return (
+      <div className="dental-chart-page">
+        <p className="dc-empty">
+          Loading dental records...
+        </p>
+      </div>
     );
+  }
 
-  const selectedTreatments = selectedPatient
-    ? patientTreatments(selectedPatient.id)
-    : [];
+  if (!canViewClinical) {
+    return (
+      <div className="dental-chart-page">
+        <div className="dc-page-header">
+          <div>
+            <h1>Patient Dental Chart</h1>
+            <p>Confidential clinical records.</p>
+          </div>
+        </div>
 
-  return (
-    <div className="dental-records-page">
-      <div className="dental-page-heading">
-        <div>
-          <h1>Dental Records</h1>
-          <p>
-            View patient dental information and treatment history.
-          </p>
+        <div className="dc-error">
+          {error ||
+            "Your account does not have permission to access clinical records."}
         </div>
 
         <button
-          className="dental-secondary-btn"
-          onClick={loadRecords}
-          disabled={loading}
+          className="dc-secondary-btn"
+          onClick={refreshRecords}
         >
-          <RefreshCw size={17} />
-          Refresh
+          <RefreshCw size={16} />
+          Retry
         </button>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // MAIN INTERFACE
+  // ==========================================
+
+  return (
+    <div className="dental-chart-page">
+
+      {/* PAGE HEADER */}
+
+      <div className="dc-page-header">
+        <div>
+          <h1>Patient Dental Chart</h1>
+
+          <p>
+            Patient information, clinical examination,
+            and treatment history.
+          </p>
+
+          <span className="dc-view-label">
+            {canEditClinical
+              ? "Dentist Access"
+              : "Administrator — View Only"}
+          </span>
+        </div>
+
+        <div className="dc-header-actions">
+          <button
+            className="dc-secondary-btn"
+            disabled={loading || loadingRecords}
+            onClick={refreshRecords}
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+
+          <button
+            className="dc-primary-btn"
+            disabled={
+              !selectedPatient ||
+              loading ||
+              loadingRecords
+            }
+            onClick={printChart}
+          >
+            <Printer size={16} />
+            Print Chart
+          </button>
+        </div>
       </div>
 
       {error && (
-        <div className="dental-error" role="alert">
+        <div className="dc-error" role="alert">
           {error}
         </div>
       )}
 
-      <div className="dental-stats">
-        <div className="dental-stat-card">
-          <div className="dental-stat-icon">
-            <UserRound size={23} />
-          </div>
-          <div>
-            <p>Registered Patients</p>
-            <h2>{patients.length}</h2>
-          </div>
+      {success && (
+        <div className="dc-success" role="status">
+          {success}
+
+          <button
+            className="dc-icon-btn"
+            onClick={() => setSuccess("")}
+            aria-label="Dismiss message"
+          >
+            <X size={17} />
+          </button>
+        </div>
+      )}
+
+      {/* PATIENT SEARCH */}
+
+      <div className="dc-search-panel">
+        <div className="dc-search-label">
+          <UserRound size={18} />
+          <strong>Select Patient</strong>
         </div>
 
-        <div className="dental-stat-card">
-          <div className="dental-stat-icon">
-            <ClipboardList size={23} />
-          </div>
-          <div>
-            <p>Treatment Records</p>
-            <h2>{treatments.length}</h2>
-          </div>
-        </div>
-      </div>
-
-      <div className="dental-panel">
-        <div className="dental-panel-heading">
-          <h2>Patient Dental Records</h2>
-          <span>View-only access</span>
-        </div>
-
-        <div className="dental-search">
+        <div className="dc-search-input">
           <Search size={18} />
+
           <input
             type="text"
-            placeholder="Search patient name..."
+            placeholder="Search patient by name or ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+
+          {search && (
+            <button
+              className="dc-icon-btn"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X size={17} />
+            </button>
+          )}
         </div>
 
-        <div className="dental-table-scroll">
-          <table className="dental-table">
-            <thead>
-              <tr>
-                <th>Patient Name</th>
-                <th>Sex</th>
-                <th>Date of Birth</th>
-                <th>Treatments</th>
-                <th>Action</th>
-              </tr>
-            </thead>
+        {loading && (
+          <p className="dc-muted">
+            Loading registered patients...
+          </p>
+        )}
 
-            <tbody>
-              {filteredPatients.map((patient) => (
-                <tr key={patient.id}>
-                  <td>{patient.full_name}</td>
-                  <td>{patient.sex || "—"}</td>
-                  <td>{formatDate(patient.date_of_birth)}</td>
-                  <td>
-                    {patientTreatments(patient.id).length}
-                  </td>
-                  <td>
-                    <button
-                      className="dental-view-btn"
-                      onClick={() => setSelectedPatient(patient)}
-                    >
-                      <Eye size={16} />
-                      View Record
-                    </button>
-                  </td>
-                </tr>
-              ))}
+        {search.trim() && !loading && (
+          <div className="dc-search-results">
+            {filteredPatients.length > 0 ? (
+              filteredPatients.map((patient) => (
+                <button
+                  type="button"
+                  className="dc-search-result"
+                  key={patient.patient_id || patient.id}
+                  onClick={() => selectPatient(patient)}
+                >
+                  <div className="dc-patient-avatar">
+                    <UserRound size={20} />
+                  </div>
 
-              {!loading && filteredPatients.length === 0 && (
-                <tr>
-                  <td colSpan="5" className="dental-empty">
-                    No patient records found.
-                  </td>
-                </tr>
+                  <div>
+                    <strong>
+                      {getFullName(patient)}
+                    </strong>
+
+                    <span>
+                      ID:{" "}
+                      {(
+                        patient.patient_id ||
+                        patient.id
+                      )?.slice(0, 8)}
+                    </span>
+                  </div>
+                </button>
+              ))
+            ) : (
+              <p className="dc-empty">
+                No matching patients found.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!loading &&
+          !error &&
+          patients.length === 0 && (
+            <p className="dc-muted">
+              No registered patients. Register a
+              patient in Patient Management first.
+            </p>
+          )}
+
+        {selectedPatient && (
+          <div className="dc-selected-patient">
+            <div className="dc-patient-avatar">
+              <UserRound size={22} />
+            </div>
+
+            <div className="dc-selected-info">
+              <strong>
+                {getFullName(selectedPatient)}
+              </strong>
+
+              <span>Selected patient</span>
+            </div>
+
+            <button
+              className="dc-icon-btn"
+              onClick={clearPatient}
+              aria-label="Clear selected patient"
+            >
+              <X size={19} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* PRINTABLE DENTAL CHART */}
+
+      <div className="dc-print-area">
+
+        <div className="dc-print-heading">
+          <h1>Smilepoint Dental Center</h1>
+          <p>Patient Dental Chart</p>
+        </div>
+
+        {/* PATIENT INFORMATION */}
+
+        <Section
+          title="Patient Information"
+          icon={UserRound}
+        >
+          <div className="dc-info-grid">
+            <InfoField
+              label="Patient ID"
+              value={patientId}
+            />
+
+            <InfoField
+              label="Full Name"
+              value={getFullName(selectedPatient)}
+            />
+
+            <InfoField
+              label="Date of Birth"
+              value={formatDate(
+                selectedPatient?.date_of_birth
               )}
-            </tbody>
-          </table>
+            />
+
+            <InfoField
+              label="Age"
+              value={getAge(
+                selectedPatient?.date_of_birth
+              )}
+            />
+
+            <InfoField
+              label="Gender"
+              value={selectedPatient?.sex}
+            />
+
+            <InfoField
+              label="Contact Number"
+              value={
+                selectedPatient?.phone_number ||
+                selectedPatient?.phone
+              }
+            />
+
+            <InfoField
+              label="Email Address"
+              value={selectedPatient?.email}
+            />
+
+            <InfoField
+              label="Address"
+              value={selectedPatient?.address}
+            />
+
+            <InfoField
+              label="Emergency Contact"
+              value={
+                selectedPatient?.emergency_contact_name
+              }
+            />
+
+            <InfoField
+              label="Emergency Contact Number"
+              value={
+                selectedPatient?.emergency_contact_phone
+              }
+            />
+          </div>
+        </Section>
+
+        {/* MEDICAL HISTORY */}
+
+        <Section
+          title="Medical History"
+          icon={ClipboardList}
+          action={
+            canEditClinical && (
+              <button
+                className="dc-primary-btn"
+                disabled={!canAddRecord}
+                onClick={() => openForm("medical")}
+              >
+                <Plus size={16} />
+                Add Medical History
+              </button>
+            )
+          }
+        >
+          {sectionMessage(
+            "medical",
+            medicalHistory.length === 0
+          ) || (
+            <>
+              <div className="dc-history-grid">
+                <InfoField
+                  label="Blood Pressure"
+                  value={history.blood_pressure}
+                />
+
+                <InfoField
+                  label="Known Allergies"
+                  value={history.allergies}
+                />
+
+                <InfoField
+                  label="Current Medications"
+                  value={history.current_medications}
+                />
+
+                <InfoField
+                  label="Additional Notes"
+                  value={history.additional_notes}
+                />
+
+                <InfoField
+                  label="Recorded Date"
+                  value={formatDate(history.recorded_at)}
+                />
+              </div>
+
+              {medicalHistory.length > 1 && (
+                <details className="dc-history-details">
+                  <summary>
+                    Previous medical history records
+                  </summary>
+
+                  {medicalHistory
+                    .filter(
+                      (item) =>
+                        item.medical_history_id !==
+                        history.medical_history_id
+                    )
+                    .map((item) => (
+                      <div
+                        className="dc-history-grid"
+                        key={item.medical_history_id}
+                      >
+                        <InfoField
+                          label="Recorded Date"
+                          value={formatDate(item.recorded_at)}
+                        />
+
+                        <InfoField
+                          label="Blood Pressure"
+                          value={item.blood_pressure}
+                        />
+
+                        <InfoField
+                          label="Allergies"
+                          value={item.allergies}
+                        />
+
+                        <InfoField
+                          label="Current Medications"
+                          value={item.current_medications}
+                        />
+
+                        <InfoField
+                          label="Additional Notes"
+                          value={item.additional_notes}
+                        />
+                      </div>
+                    ))}
+                </details>
+              )}
+            </>
+          )}
+        </Section>
+
+        {/* DENTAL HISTORY */}
+
+        <Section
+          title="Dental History"
+          icon={ClipboardList}
+        >
+          {sectionMessage(
+            "chart",
+            dentalChart.length === 0
+          ) || (
+            <div className="dc-history-grid">
+              <InfoField
+                label="Dental History Summary"
+                value={chart.history_summary}
+              />
+
+              <InfoField
+                label="General Notes"
+                value={chart.general_notes}
+              />
+
+              <InfoField
+                label="Last Examination Date"
+                value={formatDate(chart.chart_date)}
+              />
+
+              <InfoField
+                label="Outstanding Balance"
+                value={formatMoney(
+                  chart.outstanding_balance
+                )}
+              />
+            </div>
+          )}
+        </Section>
+
+        {/* INTERACTIVE DENTAL EXAMINATION */}
+
+        <Section
+          title="Dental Examination"
+          icon={Stethoscope}
+        >
+          <DentalExamination
+            key={`${patientId || "no-patient"}-${refresh}`}
+            patientId={patientId}
+          />
+        </Section>
+
+        {/* PROGRESS AND TREATMENT RECORDS */}
+
+        <Section
+          title="Progress and Treatment Records"
+          icon={ClipboardList}
+          action={
+            canEditClinical && (
+              <button
+                className="dc-primary-btn"
+                disabled={!canAddRecord}
+                onClick={() => openForm("treatment")}
+              >
+                <Plus size={16} />
+                Add Treatment
+              </button>
+            )
+          }
+        >
+          <div className="dc-table-scroll">
+            <table className="dc-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Dental Service</th>
+                  <th>Diagnosis</th>
+                  <th>Procedure / Treatment</th>
+                  <th>Dentist</th>
+                  <th>Fee</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {loadingRecords ||
+                sectionErrors.treatments ||
+                sortedTreatments.length === 0 ? (
+                  <tr>
+                    <td colSpan={7}>
+                      {sectionMessage("treatments", true)}
+                    </td>
+                  </tr>
+                ) : (
+                  sortedTreatments.map((record) => (
+                    <tr key={record.treatment_id}>
+                      <td>
+                        {formatDate(record.treatment_date)}
+                      </td>
+
+                      <td>
+                        {displayValue(
+                          getService(record)?.name
+                        )}
+                      </td>
+
+                      <td>
+                        {displayValue(record.diagnosis)}
+                      </td>
+
+                      <td>
+                        {displayValue(
+                          record.procedure_done ||
+                          record.treatment
+                        )}
+                      </td>
+
+                      <td>
+                        {displayValue(
+                          record.dentist_name ||
+                          (
+                            record.performed_by ===
+                            (staff.staff_id || staff.id)
+                              ? staff.full_name
+                              : record.performed_by
+                          )
+                        )}
+                      </td>
+
+                      <td>
+                        {formatMoney(record.fee)}
+                      </td>
+
+                      <td>
+                        {displayValue(record.remarks)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        {/* X-RAY RECORDS */}
+
+        <Section
+          title="X-Ray Records"
+          icon={Image}
+          action={
+            canEditClinical && (
+              <button
+                className="dc-primary-btn"
+                disabled={!canAddRecord}
+                onClick={() => openForm("xray")}
+              >
+                <Plus size={16} />
+                Upload X-Ray
+              </button>
+            )
+          }
+        >
+          {sectionMessage(
+            "xrays",
+            xrays.length === 0
+          ) || (
+            <div className="dc-xray-grid">
+              {sortedXrays.map((record) => (
+                <div
+                  className="dc-xray-card"
+                  key={record.xray_id}
+                >
+                  <XrayPreview
+                    path={record.storage_path}
+                  />
+
+                  <div className="dc-xray-info">
+                    <strong>
+                      {record.study_type || "X-Ray Record"}
+                    </strong>
+
+                    <p>
+                      Date: {formatDate(record.taken_at)}
+                    </p>
+
+                    <p>
+                      Findings:{" "}
+                      {displayValue(record.findings)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* FOOTER */}
+
+        <div className="dc-footer">
+          Smilepoint Dental Center — Confidential
+          Patient Clinical Record
         </div>
       </div>
 
-      {selectedPatient && (
-        <div
-          className="dental-modal-overlay"
-          onClick={() => setSelectedPatient(null)}
-        >
-          <div
-            className="dental-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Patient dental record"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="dental-modal-heading">
-              <div>
-                <h2>{selectedPatient.full_name}</h2>
-                <p>Dental Record Overview</p>
-              </div>
+      {/* CLINICAL RECORD MODAL */}
 
-              <button
-                className="dental-close-btn"
-                onClick={() => setSelectedPatient(null)}
-                aria-label="Close record"
-              >
-                <X size={21} />
-              </button>
-            </div>
-
-            <div className="dental-patient-info">
-              <div>
-                <span>Patient Name</span>
-                <strong>{selectedPatient.full_name}</strong>
-              </div>
-              <div>
-                <span>Sex</span>
-                <strong>{selectedPatient.sex || "—"}</strong>
-              </div>
-              <div>
-                <span>Date of Birth</span>
-                <strong>
-                  {formatDate(selectedPatient.date_of_birth)}
-                </strong>
-              </div>
-            </div>
-
-            <h3 className="dental-section-title">
-              <Stethoscope size={19} />
-              Treatment History
-            </h3>
-
-            {selectedTreatments.length === 0 ? (
-              <div className="dental-empty-state">
-                <CalendarDays size={26} />
-                <p>No treatment records available.</p>
-              </div>
-            ) : (
-              <div className="dental-treatment-list">
-                {selectedTreatments.map((record) => (
-                  <div
-                    className="dental-treatment-card"
-                    key={record.id}
-                  >
-                    <div className="dental-treatment-top">
-                      <strong>
-                        {record.treatment || "Dental Treatment"}
-                      </strong>
-                      <span>
-                        {formatDate(
-                          record.treatment_date ||
-                          record.created_at
-                        )}
-                      </span>
-                    </div>
-
-                    <p>
-                      <strong>Diagnosis:</strong>{" "}
-                      {record.diagnosis || "—"}
-                    </p>
-
-                    <p>
-                      <strong>Remarks:</strong>{" "}
-                      {record.remarks || "—"}
-                    </p>
-
-                    <p>
-                      <strong>Fee:</strong>{" "}
-                      {formatMoney(record.fee)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="dental-modal-footer">
-              <span>
-                Clinical records are view-only in this panel.
-              </span>
-              <button
-                className="dental-secondary-btn"
-                onClick={() => setSelectedPatient(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+      {activeForm && canEditClinical && patientId && (
+        <ClinicalRecordForm
+          key={`${patientId}-${activeForm}`}
+          type={activeForm}
+          patientId={patientId}
+          onClose={() => setActiveForm(null)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );
