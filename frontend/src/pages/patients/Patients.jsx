@@ -1,5 +1,5 @@
-
 import { useEffect, useState } from "react";
+
 import {
   Search,
   UserRound,
@@ -19,6 +19,10 @@ import {
   getCurrentStaff,
 } from "../../services/patientsApi";
 
+// ==========================================
+// DEFAULT FORM
+// ==========================================
+
 const emptyForm = {
   first_name: "",
   middle_name: "",
@@ -32,10 +36,20 @@ const emptyForm = {
   emergency_contact_phone: "",
 };
 
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
 function getAge(dob) {
   if (!dob) return "—";
 
-  const [year, month, day] = dob.split("-").map(Number);
+  const [year, month, day] = dob
+    .slice(0, 10)
+    .split("-")
+    .map(Number);
+
+  if (!year || !month || !day) return "—";
+
   const today = new Date();
 
   let age = today.getFullYear() - year;
@@ -55,15 +69,18 @@ function formatPatient(patient) {
   return {
     ...patient,
 
-    id: patient.patient_id || patient.id,
+    id: patient.patient_id ?? patient.id,
 
-    name: [
-      patient.first_name,
-      patient.middle_name,
-      patient.last_name,
-    ]
-      .filter(Boolean)
-      .join(" "),
+    name:
+      [
+        patient.first_name,
+        patient.middle_name,
+        patient.last_name,
+      ]
+        .filter(Boolean)
+        .join(" ") ||
+      patient.full_name ||
+      "",
 
     age: getAge(patient.date_of_birth),
 
@@ -77,11 +94,21 @@ function getToday() {
   const today = new Date();
 
   const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
+
+  const month = String(
+    today.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    today.getDate()
+  ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
+
+// ==========================================
+// PATIENT MANAGEMENT
+// ==========================================
 
 export default function Patients() {
   const [patients, setPatients] = useState([]);
@@ -93,7 +120,9 @@ export default function Patients() {
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const [form, setForm] = useState({ ...emptyForm });
+  const [form, setForm] = useState({
+    ...emptyForm,
+  });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -103,6 +132,10 @@ export default function Patients() {
   const [success, setSuccess] = useState("");
 
   const [refresh, setRefresh] = useState(0);
+
+  // ==========================================
+  // ROLE-BASED ACCESS
+  // ==========================================
 
   const canManage =
     staff?.role === "receptionist" &&
@@ -133,7 +166,10 @@ export default function Patients() {
         setPatients(data.map(formatPatient));
       } catch (error) {
         if (active) {
-          setLoadError(error.message);
+          setLoadError(
+            error.message ||
+              "Unable to load patient records."
+          );
         }
       } finally {
         if (active) {
@@ -171,7 +207,7 @@ export default function Patients() {
   // ==========================================
 
   function openAddForm() {
-    if (!canManage) return;
+    if (!canManage || saving) return;
 
     setSelected(null);
     setForm({ ...emptyForm });
@@ -182,10 +218,12 @@ export default function Patients() {
   }
 
   // ==========================================
-  // VIEW PATIENT
+  // VIEW PATIENT DETAILS
   // ==========================================
 
   function viewPatient(patient) {
+    if (saving) return;
+
     setSelected(patient);
     setShowForm(false);
     setIsEditing(false);
@@ -197,25 +235,38 @@ export default function Patients() {
   // ==========================================
 
   function startEditing() {
-    if (!selected || !canManage) return;
+    if (!selected || !canManage || saving) {
+      return;
+    }
 
     setForm({
-      first_name: selected.first_name || "",
-      middle_name: selected.middle_name || "",
-      last_name: selected.last_name || "",
-      date_of_birth: selected.date_of_birth || "",
-      sex: selected.sex || "",
-      phone_number: selected.phone_number || "",
-      email: selected.email || "",
-      address: selected.address || "",
+      first_name: selected.first_name ?? "",
+
+      middle_name: selected.middle_name ?? "",
+
+      last_name: selected.last_name ?? "",
+
+      date_of_birth:
+        selected.date_of_birth?.slice(0, 10) ?? "",
+
+      sex: selected.sex ?? "",
+
+      phone_number: selected.phone_number ?? "",
+
+      email: selected.email ?? "",
+
+      address: selected.address ?? "",
+
       emergency_contact_name:
-        selected.emergency_contact_name || "",
+        selected.emergency_contact_name ?? "",
+
       emergency_contact_phone:
-        selected.emergency_contact_phone || "",
+        selected.emergency_contact_phone ?? "",
     });
 
     setFormError("");
     setSuccess("");
+    setShowForm(false);
     setIsEditing(true);
   }
 
@@ -266,12 +317,22 @@ export default function Patients() {
 
     const payload = {
       first_name: form.first_name.trim(),
-      middle_name: form.middle_name.trim() || null,
+
+      middle_name:
+        form.middle_name.trim() || null,
+
       last_name: form.last_name.trim(),
-      date_of_birth: form.date_of_birth || null,
+
+      date_of_birth:
+        form.date_of_birth || null,
+
       sex: form.sex || null,
-      phone_number: form.phone_number.trim() || null,
+
+      phone_number:
+        form.phone_number.trim() || null,
+
       email: form.email.trim() || null,
+
       address: form.address.trim() || null,
 
       emergency_contact_name:
@@ -281,7 +342,6 @@ export default function Patients() {
         form.emergency_contact_phone.trim() || null,
     };
 
-    // Omit empty optional fields during registration.
     const createPayload = Object.fromEntries(
       Object.entries(payload).filter(
         ([, value]) => value !== null
@@ -291,17 +351,42 @@ export default function Patients() {
     setSaving(true);
 
     try {
+      // ======================================
+      // UPDATE EXISTING PATIENT
+      // ======================================
+
       if (isEditing && selected) {
+        const patientId =
+          selected.patient_id ?? selected.id;
+
+        if (!patientId) {
+          throw new Error(
+            "Unable to identify the selected patient."
+          );
+        }
+
         const updated = await updatePatient(
-          selected.id,
+          patientId,
           payload
         );
 
-        const formatted = formatPatient(updated);
+        // Preserve patient information and ID
+        // if the API returns only updated fields.
+
+        const formatted = formatPatient({
+          ...selected,
+          ...payload,
+          ...updated,
+
+          patient_id:
+            updated?.patient_id ??
+            updated?.id ??
+            patientId,
+        });
 
         setPatients((current) =>
           current.map((patient) =>
-            patient.id === formatted.id
+            patient.id === patientId
               ? formatted
               : patient
           )
@@ -309,29 +394,48 @@ export default function Patients() {
 
         setSelected(formatted);
         setIsEditing(false);
+        setShowForm(false);
 
-        setSuccess("Patient updated successfully.");
+        setSuccess(
+          "Patient updated successfully."
+        );
       } else {
-        const saved = await createPatient(createPayload);
+        // ====================================
+        // REGISTER NEW PATIENT
+        // ====================================
+
+        const saved = await createPatient(
+          createPayload
+        );
 
         const formatted = formatPatient(saved);
 
         setPatients((current) => [
           formatted,
+
           ...current.filter(
-            (patient) => patient.id !== formatted.id
+            (patient) =>
+              patient.id !== formatted.id
           ),
         ]);
 
+        setSelected(null);
         setShowForm(false);
+        setIsEditing(false);
+
         setForm({ ...emptyForm });
 
-        setSuccess("Patient registered successfully.");
+        setSuccess(
+          "Patient registered successfully."
+        );
       }
 
       setRefresh((current) => current + 1);
     } catch (error) {
-      setFormError(error.message);
+      setFormError(
+        error.message ||
+          "Unable to save patient information."
+      );
     } finally {
       setSaving(false);
     }
@@ -351,20 +455,37 @@ export default function Patients() {
     setForm({ ...emptyForm });
   }
 
+  function cancelEditing() {
+    if (saving) return;
+
+    setIsEditing(false);
+    setFormError("");
+    setForm({ ...emptyForm });
+  }
+
   // ==========================================
   // PATIENT FORM
   // ==========================================
 
   function renderForm() {
     return (
-      <form className="sp-form" onSubmit={savePatient}>
+      <form
+        className="sp-form"
+        onSubmit={savePatient}
+      >
         {formError && (
-          <div className="sp-error" role="alert">
+          <div
+            className="sp-error"
+            role="alert"
+          >
             {formError}
           </div>
         )}
 
         <div className="sp-form-grid">
+
+          {/* FIRST NAME */}
+
           <div className="sp-form-group">
             <label htmlFor="first_name">
               First Name *
@@ -378,8 +499,11 @@ export default function Patients() {
               value={form.first_name}
               onChange={handleChange}
               placeholder="Enter first name"
+              disabled={saving}
             />
           </div>
+
+          {/* LAST NAME */}
 
           <div className="sp-form-group">
             <label htmlFor="last_name">
@@ -394,8 +518,11 @@ export default function Patients() {
               value={form.last_name}
               onChange={handleChange}
               placeholder="Enter last name"
+              disabled={saving}
             />
           </div>
+
+          {/* MIDDLE NAME */}
 
           <div className="sp-form-group">
             <label htmlFor="middle_name">
@@ -409,8 +536,11 @@ export default function Patients() {
               value={form.middle_name}
               onChange={handleChange}
               placeholder="Enter middle name"
+              disabled={saving}
             />
           </div>
+
+          {/* DATE OF BIRTH */}
 
           <div className="sp-form-group">
             <label htmlFor="date_of_birth">
@@ -424,23 +554,39 @@ export default function Patients() {
               max={getToday()}
               value={form.date_of_birth}
               onChange={handleChange}
+              disabled={saving}
             />
           </div>
 
+          {/* GENDER */}
+
           <div className="sp-form-group">
-            <label htmlFor="sex">Gender</label>
+            <label htmlFor="sex">
+              Gender
+            </label>
 
             <select
               id="sex"
               name="sex"
               value={form.sex}
               onChange={handleChange}
+              disabled={saving}
             >
-              <option value="">Select gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
+              <option value="">
+                Select gender
+              </option>
+
+              <option value="Male">
+                Male
+              </option>
+
+              <option value="Female">
+                Female
+              </option>
             </select>
           </div>
+
+          {/* CONTACT NUMBER */}
 
           <div className="sp-form-group">
             <label htmlFor="phone_number">
@@ -455,8 +601,11 @@ export default function Patients() {
               value={form.phone_number}
               onChange={handleChange}
               placeholder="Enter contact number"
+              disabled={saving}
             />
           </div>
+
+          {/* EMAIL */}
 
           <div className="sp-form-group sp-form-group-full">
             <label htmlFor="email">
@@ -470,11 +619,16 @@ export default function Patients() {
               value={form.email}
               onChange={handleChange}
               placeholder="Enter email address"
+              disabled={saving}
             />
           </div>
 
+          {/* ADDRESS */}
+
           <div className="sp-form-group sp-form-group-full">
-            <label htmlFor="address">Address</label>
+            <label htmlFor="address">
+              Address
+            </label>
 
             <textarea
               id="address"
@@ -484,8 +638,11 @@ export default function Patients() {
               value={form.address}
               onChange={handleChange}
               placeholder="Enter complete address"
+              disabled={saving}
             />
           </div>
+
+          {/* EMERGENCY CONTACT NAME */}
 
           <div className="sp-form-group">
             <label htmlFor="emergency_contact_name">
@@ -496,11 +653,16 @@ export default function Patients() {
               id="emergency_contact_name"
               name="emergency_contact_name"
               maxLength={160}
-              value={form.emergency_contact_name}
+              value={
+                form.emergency_contact_name
+              }
               onChange={handleChange}
               placeholder="Enter contact name"
+              disabled={saving}
             />
           </div>
+
+          {/* EMERGENCY CONTACT NUMBER */}
 
           <div className="sp-form-group">
             <label htmlFor="emergency_contact_phone">
@@ -512,26 +674,28 @@ export default function Patients() {
               type="tel"
               name="emergency_contact_phone"
               maxLength={50}
-              value={form.emergency_contact_phone}
+              value={
+                form.emergency_contact_phone
+              }
               onChange={handleChange}
               placeholder="Enter contact number"
+              disabled={saving}
             />
           </div>
         </div>
+
+        {/* FORM ACTIONS */}
 
         <div className="sp-modal-footer">
           <button
             type="button"
             className="sp-secondary-btn"
             disabled={saving}
-            onClick={() => {
-              if (isEditing) {
-                setIsEditing(false);
-                setFormError("");
-              } else {
-                closeModal();
-              }
-            }}
+            onClick={
+              isEditing
+                ? cancelEditing
+                : closeModal
+            }
           >
             Cancel
           </button>
@@ -539,7 +703,7 @@ export default function Patients() {
           <button
             type="submit"
             className="sp-primary-btn"
-            disabled={saving}
+            disabled={saving || !canManage}
           >
             {saving
               ? "Saving..."
@@ -558,12 +722,16 @@ export default function Patients() {
 
   return (
     <div className="sp-page">
+
+      {/* PAGE HEADER */}
+
       <div className="sp-page-header">
         <div>
           <h1>Patient Management</h1>
 
           <p>
-            Manage patient information and registration.
+            Manage patient information and
+            registration.
           </p>
         </div>
 
@@ -571,9 +739,11 @@ export default function Patients() {
           <button
             type="button"
             className="sp-secondary-btn"
-            disabled={loading}
+            disabled={loading || saving}
             onClick={() =>
-              setRefresh((current) => current + 1)
+              setRefresh(
+                (current) => current + 1
+              )
             }
           >
             <RefreshCw size={17} />
@@ -585,6 +755,7 @@ export default function Patients() {
               type="button"
               className="sp-primary-btn"
               onClick={openAddForm}
+              disabled={saving}
             >
               <Plus size={17} />
               Add Patient
@@ -593,22 +764,35 @@ export default function Patients() {
         </div>
       </div>
 
+      {/* SUCCESS MESSAGE */}
+
       {success && (
-        <div className="sp-success" role="status">
+        <div
+          className="sp-success"
+          role="status"
+        >
           {success}
         </div>
       )}
 
+      {/* ERROR MESSAGE */}
+
       {loadError && (
-        <div className="sp-error" role="alert">
+        <div
+          className="sp-error"
+          role="alert"
+        >
           Unable to load patients: {loadError}
         </div>
       )}
 
+      {/* VIEW-ONLY ACCESS */}
+
       {staff && !canManage && (
         <p className="sp-muted">
-          View-only access — patient registration and
-          editing are available to receptionists.
+          View-only access — patient registration
+          and editing are available to
+          receptionists.
         </p>
       )}
 
@@ -620,6 +804,7 @@ export default function Patients() {
 
           <div>
             <span>Total Patients</span>
+
             <h2>
               {loading || loadError
                 ? "—"
@@ -647,8 +832,21 @@ export default function Patients() {
                 setSearch(e.target.value)
               }
             />
+
+            {search && (
+              <button
+                type="button"
+                className="sp-icon-btn"
+                aria-label="Clear search"
+                onClick={() => setSearch("")}
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
         </div>
+
+        {/* PATIENT TABLE */}
 
         <div className="sp-table-scroll">
           <table className="sp-table">
@@ -666,14 +864,21 @@ export default function Patients() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="sp-empty">
+                  <td
+                    colSpan={6}
+                    className="sp-empty"
+                  >
                     Loading patient records...
                   </td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td colSpan={6} className="sp-empty">
-                    Unable to retrieve patient records.
+                  <td
+                    colSpan={6}
+                    className="sp-empty"
+                  >
+                    Unable to retrieve patient
+                    records.
                   </td>
                 </tr>
               ) : filtered.length > 0 ? (
@@ -683,7 +888,9 @@ export default function Patients() {
                       {patient.id?.slice(0, 8)}
                     </td>
 
-                    <td>{patient.name}</td>
+                    <td>
+                      {patient.name || "—"}
+                    </td>
 
                     <td>{patient.age}</td>
 
@@ -698,6 +905,7 @@ export default function Patients() {
                         onClick={() =>
                           viewPatient(patient)
                         }
+                        disabled={saving}
                       >
                         <Eye size={16} />
                         View
@@ -707,7 +915,10 @@ export default function Patients() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="sp-empty">
+                  <td
+                    colSpan={6}
+                    className="sp-empty"
+                  >
                     {search
                       ? "No matching patients found."
                       : "No patient records found."}
@@ -735,6 +946,9 @@ export default function Patients() {
               overflowY: "auto",
             }}
           >
+
+            {/* MODAL HEADER */}
+
             <div className="sp-modal-header">
               <h2 id="patient-modal-title">
                 {isEditing
@@ -755,10 +969,15 @@ export default function Patients() {
               </button>
             </div>
 
+            {/* ADD OR EDIT FORM */}
+
             {showForm || isEditing ? (
               renderForm()
             ) : (
               <div className="sp-details">
+
+                {/* PATIENT DETAILS */}
+
                 <p>
                   <strong>Patient ID:</strong>{" "}
                   {selected.id}
@@ -766,12 +985,15 @@ export default function Patients() {
 
                 <p>
                   <strong>Full Name:</strong>{" "}
-                  {selected.name}
+                  {selected.name || "—"}
                 </p>
 
                 <p>
                   <strong>Date of Birth:</strong>{" "}
-                  {selected.date_of_birth || "—"}
+                  {selected.date_of_birth?.slice(
+                    0,
+                    10
+                  ) || "—"}
                 </p>
 
                 <p>
@@ -800,14 +1022,22 @@ export default function Patients() {
                 </p>
 
                 <p>
-                  <strong>Emergency Contact:</strong>{" "}
-                  {selected.emergency_contact_name || "—"}
+                  <strong>
+                    Emergency Contact:
+                  </strong>{" "}
+                  {selected.emergency_contact_name ||
+                    "—"}
                 </p>
 
                 <p>
-                  <strong>Emergency Contact Number:</strong>{" "}
-                  {selected.emergency_contact_phone || "—"}
+                  <strong>
+                    Emergency Contact Number:
+                  </strong>{" "}
+                  {selected.emergency_contact_phone ||
+                    "—"}
                 </p>
+
+                {/* MODAL ACTIONS */}
 
                 <div className="sp-modal-footer">
                   <button
@@ -837,4 +1067,3 @@ export default function Patients() {
     </div>
   );
 }
-2
