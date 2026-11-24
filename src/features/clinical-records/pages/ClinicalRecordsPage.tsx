@@ -3,6 +3,7 @@ import { ClinicalIcon } from '../../../components/ui/ClinicalIcon'
 import { DentalChart } from '../components/DentalChart'
 import { MedicalHistoryForm } from '../components/MedicalHistoryForm'
 import { TreatmentRecords } from '../components/TreatmentRecords'
+import { XrayManagement } from '../components/XrayManagement'
 import type { ClinicalPatientReference } from '../types/clinical-records'
 
 export function ClinicalRecordsPage({ patient }: { patient: ClinicalPatientReference | null }) {
@@ -48,6 +49,7 @@ export function ClinicalRecordsPage({ patient }: { patient: ClinicalPatientRefer
         <MedicalHistoryForm patient={patient} record={null} />
         <DentalChart patient={patient} charts={[]} toothExaminations={[]} />
         <TreatmentRecords patient={patient} records={[]} />
+        <XrayManagement patient={patient} studies={[]} />
       </div>
     </div>
   )

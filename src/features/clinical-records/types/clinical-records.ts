@@ -66,3 +66,15 @@ export interface TreatmentRecordDraft {
   treatment_date: string
   notes: string | null
 }
+
+export interface XrayStudy {
+  xray_id: string
+  patient_id: string
+  appointment_id: string | null
+  ordered_by: string | null
+  study_type: string
+  image_url: string
+  storage_path: string | null
+  findings: string | null
+  taken_at: string
+}
