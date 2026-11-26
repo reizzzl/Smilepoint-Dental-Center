@@ -2,6 +2,23 @@
 
 Smilepoint's backend uses Node.js, Express, Supabase Auth, and PostgreSQL. The API handles patient registration, scheduling, dental services, clinical records, billing, and staff permissions.
 
+#DATABASE LINK
+https://supabase.com/dashboard/project/fiycofqxnmgbfppzvcpf/database/schemas
+
+#CREDENTIALS
+
+#Admin
+Email: joshuacloud@gmail.com
+Pass: Joshua12345
+
+#Receptionist
+Email: lasicreivin@gmail.com
+Pass: Reivin12345
+
+#Dentist
+Email: jestermarc@staff.com
+Pass: Jester12345
+
 ## Backend setup
 
 1. Use Node.js 24 and a development Supabase project. In the Supabase SQL Editor, run [database/smilepoint.sql](database/smilepoint.sql) once against a project that has no Smilepoint tables. Then run [database/seed.sql](database/seed.sql) for fictional patients, services, appointments, clinical records, and payments. The seed can be rerun without overwriting those records.
