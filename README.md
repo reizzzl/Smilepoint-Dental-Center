@@ -8,19 +8,19 @@ https://supabase.com/dashboard/project/fiycofqxnmgbfppzvcpf/database/schemas
 
 ## CREDENTIALS
 
-## Admin
+### Admin
 
 Email: joshuacloud@gmail.com
 
 Pass: Joshua12345
 
-## Receptionist
+### Receptionist
 
 Email: lasicreivin@gmail.com
 
 Pass: Reivin12345
 
-## Dentist
+### Dentist
 
 Email: jestermarc@staff.com
 
