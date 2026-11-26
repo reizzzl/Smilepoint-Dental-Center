@@ -2,25 +2,25 @@
 
 Smilepoint's backend uses Node.js, Express, Supabase Auth, and PostgreSQL. The API handles patient registration, scheduling, dental services, clinical records, billing, and staff permissions.
 
-#DATABASE LINK
+# DATABASE LINK
 
 https://supabase.com/dashboard/project/fiycofqxnmgbfppzvcpf/database/schemas
 
-#CREDENTIALS
+# CREDENTIALS
 
-#Admin
+# Admin
 
 Email: joshuacloud@gmail.com
 
 Pass: Joshua12345
 
-#Receptionist
+# Receptionist
 
 Email: lasicreivin@gmail.com
 
 Pass: Reivin12345
 
-#Dentist
+# Dentist
 
 Email: jestermarc@staff.com
 
